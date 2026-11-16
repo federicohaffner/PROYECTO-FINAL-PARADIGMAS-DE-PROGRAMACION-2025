@@ -1912,4 +1912,1054 @@ Funciones (el reloj marca hoy 10:00; entrada $ 1000):
 
 </methods>
 
+<class>
+<name>VentanaCineDePrueba</name>
+<environment>Smalltalk</environment>
+<super>VentanaCine</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>respuestas avisos preguntas opciones</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>VentanaCineDePrueba</class-id>
+<body>Ventana para las pruebas automaticas. Hace lo mismo que VentanaCine pero no abre ningun dialogo: redefine los cuatro metodos dialogo... para que contesten con respuestas programadas de antemano (ver responder:) y guarda los avisos, las preguntas y las listas que se mostraron, asi la prueba puede revisarlos. Cuando se acaban las respuestas contesta como si el usuario apretara Cancelar.</body>
+</comment>
+
+<class>
+<name>VentanaCineTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>ventana ana beto carla dario elsa fede cine chica teatro alfa beta hamlet funcion funcionHamlet reserva</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>VentanaCineTest</class-id>
+<body>Pruebas de la interfaz: aprietan cada boton de la ventana (ejecutando el metodo que el boton llama) y contestan los dialogos con un guion. Usan VentanaCineDePrueba, asi que no se abre ninguna ventana. Hay pruebas generales (todos los botones, cancelando en cada paso) y pruebas de cada boton con sus casos de error.</body>
+</comment>
+
+<methods>
+<class-id>VentanaCineDePrueba</class-id> <category>initialize-release</category>
+
+<body package="CineTeatro-Tests" selector="initialize">initialize
+	super initialize.
+	self responder: #()</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineDePrueba</class-id> <category>guion</category>
+
+<body package="CineTeatro-Tests" selector="responder:">responder: unasRespuestas
+	"Programa, en orden, lo que va a contestar el usuario en los proximos dialogos:
+	   un texto    -&gt; lo que escribe, o la opcion de una lista que contiene ese texto
+	   un numero   -&gt; la posicion de la opcion en una lista
+	   true/false  -&gt; Si o No en una confirmacion
+	   #inicial    -&gt; aceptar el valor que el dialogo ya trae escrito
+	 Cuando no quedan respuestas, el usuario aprieta Cancelar (o No)."
+	respuestas := OrderedCollection new.
+	respuestas addAll: unasRespuestas.
+	avisos := OrderedCollection new.
+	preguntas := OrderedCollection new.
+	opciones := #()</body>
+
+<body package="CineTeatro-Tests" selector="siguienteRespuesta">siguienteRespuesta
+	"nil cuando ya no quedan respuestas"
+	^respuestas isEmpty ifTrue: [nil] ifFalse: [respuestas removeFirst]</body>
+
+<body package="CineTeatro-Tests" selector="guionMalArmado:">guionMalArmado: unTexto
+	"El error es de la prueba, no del sistema: no es un ErrorCine, asi la prueba falla"
+	^self error: 'Guion de prueba mal armado: ' , unTexto</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineDePrueba</class-id> <category>dialogos</category>
+
+<body package="CineTeatro-Tests" selector="dialogoPedir:inicial:">dialogoPedir: unMensaje inicial: unTexto
+	| r |
+	preguntas add: unMensaje.
+	r := self siguienteRespuesta.
+	r isNil ifTrue: [^nil].
+	r == #inicial ifTrue: [^unTexto].
+	r isString ifFalse: [^self guionMalArmado: '"' , unMensaje , '" pide un texto y se contesto ' , r printString].
+	^r</body>
+
+<body package="CineTeatro-Tests" selector="dialogoElegir:etiquetas:valores:">dialogoElegir: unTitulo etiquetas: etiquetas valores: valores
+	| r |
+	preguntas add: unTitulo.
+	opciones := etiquetas.
+	r := self siguienteRespuesta.
+	r isNil ifTrue: [^nil].
+	r isInteger ifTrue: [^valores at: r].
+	r isString ifFalse: [^self guionMalArmado: 'la lista "' , unTitulo , '" pide una opcion y se contesto ' , r printString].
+	1 to: etiquetas size do: [:i |
+		('*' , r , '*' match: (etiquetas at: i)) ifTrue: [^valores at: i]].
+	^self guionMalArmado: 'en la lista "' , unTitulo , '" no hay ninguna opcion que contenga ' , r printString</body>
+
+<body package="CineTeatro-Tests" selector="dialogoConfirmar:">dialogoConfirmar: unMensaje
+	| r |
+	preguntas add: unMensaje.
+	r := self siguienteRespuesta.
+	r isNil ifTrue: [^false].
+	(r == true or: [r == false]) ifFalse: [^self guionMalArmado: '"' , unMensaje , '" pide Si o No y se contesto ' , r printString].
+	^r</body>
+
+<body package="CineTeatro-Tests" selector="dialogoAvisar:">dialogoAvisar: unMensaje
+	avisos add: unMensaje</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineDePrueba</class-id> <category>lo que vio el usuario</category>
+
+<body package="CineTeatro-Tests" selector="avisos">avisos
+	"Los avisos de error que se mostraron desde el ultimo responder:"
+	^avisos</body>
+
+<body package="CineTeatro-Tests" selector="ultimoAviso">ultimoAviso
+	^avisos isEmpty ifTrue: [''] ifFalse: [avisos last]</body>
+
+<body package="CineTeatro-Tests" selector="preguntas">preguntas
+	"Los titulos de todos los dialogos que se abrieron desde el ultimo responder:"
+	^preguntas</body>
+
+<body package="CineTeatro-Tests" selector="opciones">opciones
+	"Las opciones de la ultima lista que se mostro"
+	^opciones</body>
+
+<body package="CineTeatro-Tests" selector="sobrantes">sobrantes
+	"Las respuestas programadas que no se llegaron a usar"
+	^respuestas</body>
+
+<body package="CineTeatro-Tests" selector="texto">texto
+	"Lo que quedo escrito en el panel de salida de la ventana"
+	^salida value asString</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>running</category>
+
+<body package="CineTeatro-Tests" selector="setUp">setUp
+	"Un cine chico pero con de todo, para que cada boton tenga con que trabajar:
+	 6 personas (2 socios activos, 1 inactiva, 2 criticos, 1 sin rol), 3 salas,
+	 3 peliculas/obras, 2 funciones y una reserva pendiente de Ana (A1 y A2)."
+	super setUp.
+	ana := self socio: 'Ana Lopez'.
+	beto := self socio: 'Beto Ruiz'.
+	carla := admin altaCriticoPersona: (self persona: 'Carla Diaz') id usuario: 'carlad'.
+	dario := self persona: 'Dario Paz'.
+	admin altaCriticoPersona: dario id usuario: 'dariop'.
+	elsa := self socio: 'Elsa Mora'.
+	admin darDeBajaSocio: elsa id.
+	fede := self persona: 'Fede Gil'.
+	cine := self salaCine.
+	chica := self salaChica.
+	teatro := self salaTeatro.
+	alfa := self pelicula: 'Alfa'.
+	beta := self pelicula: 'Beta'.
+	hamlet := self obraDeTeatro: 'Hamlet'.
+	admin agregarAlElenco: dario id obra: alfa id.
+	admin registrarCriticaDe: carla id obra: alfa id resena: 'Buena' puntaje: 8.
+	funcion := self funcionDe: alfa en: cine dia: 5 hora: 20.
+	funcionHamlet := self funcionDe: hamlet en: teatro dia: 6 hora: 21.
+	reserva := admin reservarSocio: ana id funcion: funcion id butacas: #('A1' 'A2').
+	ventana := VentanaCineDePrueba conAdministrador: admin</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>ayudas</category>
+
+<body package="CineTeatro-Tests" selector="usar:con:">usar: unBoton con: unasRespuestas
+	"Aprieta un boton (ejecuta el metodo de la ventana que el boton llama) y contesta
+	 los dialogos con esas respuestas, en orden (ver VentanaCineDePrueba&gt;&gt;responder:)"
+	ventana responder: unasRespuestas.
+	ventana perform: unBoton</body>
+
+<body package="CineTeatro-Tests" selector="usarBien:con:">usarBien: unBoton con: unasRespuestas
+	"Como usar:con:, pero ademas la accion tiene que terminar bien: sin avisos de error,
+	 usando todas las respuestas y sin hacer ninguna pregunta de mas"
+	self usar: unBoton con: unasRespuestas.
+	self assert: ventana avisos isEmpty description: unBoton asString , ' mostro un aviso: ' , ventana ultimoAviso.
+	self assert: ventana sobrantes isEmpty description: unBoton asString , ' no uso todas las respuestas'.
+	self assert: ventana preguntas size = unasRespuestas size description: unBoton asString , ' hizo mas preguntas que las respuestas que habia'</body>
+
+<body package="CineTeatro-Tests" selector="avisoDe:con:">avisoDe: unBoton con: unasRespuestas
+	"Aprieta el boton y devuelve el aviso de error que tiene que aparecer (uno solo)"
+	self usar: unBoton con: unasRespuestas.
+	self assert: ventana avisos size = 1 description: unBoton asString , ' deberia mostrar un aviso y mostro ' , ventana avisos size printString.
+	^ventana ultimoAviso</body>
+
+<body package="CineTeatro-Tests" selector="personaDe:">personaDe: unSocio
+	^admin personaId: unSocio idPersona</body>
+
+<body package="CineTeatro-Tests" selector="huella">huella
+	"Un texto con todos los datos del sistema (lo que muestran los ocho listados).
+	 Si dos huellas son iguales, los datos no cambiaron."
+	| ws |
+	ws := WriteStream on: (String new: 4000).
+	#(#listarPersonas #listarSocios #listarCriticos #listarObras #listarSalas #listarFunciones #listarReservas #listarVentas) do: [:boton |
+		ventana perform: boton.
+		ws nextPutAll: ventana texto; cr].
+	^ws contents</body>
+
+<body package="CineTeatro-Tests" selector="elementosDeLaVentana">elementosDeLaVentana
+	"Los componentes (etiquetas, botones, panel de texto) tal como estan en el windowSpec"
+	| spec componentes |
+	spec := VentanaCine windowSpec.
+	componentes := spec at: (spec indexOf: #component:) + 1.
+	^componentes at: (componentes indexOf: #collection:) + 1</body>
+
+<body package="CineTeatro-Tests" selector="botones">botones
+	"Los selectores que llaman los botones de la ventana (el #model: de cada ActionButtonSpec)"
+	| specs |
+	specs := self elementosDeLaVentana select: [:e | e first value == UI.ActionButtonSpec].
+	^specs collect: [:e | e at: (e indexOf: #model:) + 1]</body>
+
+<body package="CineTeatro-Tests" selector="botonesSinDialogos">botonesSinDialogos
+	"Botones que muestran su resultado directamente, sin preguntar nada"
+	^#(#listarPersonas #listarSocios #listarCriticos #listarSalas #listarObras #listarFunciones #recargarDisco #listarReservas #listarVentas #consultaReservasImpagas #consultaMejoresCriticas #consultaOcupacion #consultaAgotadas #consultaRanking #consultaProximas)</body>
+
+<body package="CineTeatro-Tests" selector="guiones">guiones
+	"Para cada boton que abre dialogos: las respuestas con las que la accion termina bien
+	 partiendo de los datos de setUp. Se usan en las pruebas generales."
+	^OrderedCollection new
+		add: #altaPersona -&gt; #('Eva Sol' '30111222' '01/02/1995' 'F' 'Calle 9' 'eva@mail.com' '3442-111111');
+		add: #modificarPersona -&gt; #('Lopez' 'Domicilio:' 'Otra calle 5');
+		add: #bajaPersona -&gt; #('Gil' true);
+		add: #altaSocio -&gt; #('Gil');
+		add: #bajaSocio -&gt; #('Ruiz' true);
+		add: #reactivarSocio -&gt; #('Mora');
+		add: #altaCritico -&gt; #('Gil' 'fedeg');
+		add: #bajaCritico -&gt; #('dariop' true);
+		add: #registrarCritica -&gt; #('carlad' 'Beta' 'Buena' '7');
+		add: #bajaCritica -&gt; #('carlad' 'Alfa' true);
+		add: #altaSala -&gt; #('Sala Nueva' '2' '3' true false);
+		add: #modificarSala -&gt; #('Sala Chica' 'Nombre:' 'Sala VIP');
+		add: #bajaSala -&gt; #('Sala Chica' true);
+		add: #altaPelicula -&gt; #('Gamma' 'Una de accion' '120' 'ATP' 'sin director');
+		add: #altaObraTeatro -&gt; #('Otelo' '' '95' '+13' 'Paz');
+		add: #modificarObra -&gt; #('Beta' 'Titulo:' 'Beta 2');
+		add: #bajaObra -&gt; #('Beta' true);
+		add: #agregarElenco -&gt; #('Beta' 'Lopez');
+		add: #quitarElenco -&gt; #('Alfa' 'Paz');
+		add: #cambiarEstadoCartel -&gt; #('Beta');
+		add: #programarFuncion -&gt; #('Beta' 'Sala Cine' '20/06/2030' '18:30' '5.000');
+		add: #cambiarPrecio -&gt; #('Alfa' '1.500');
+		add: #eliminarFuncion -&gt; #('Hamlet' true);
+		add: #fechaSistema -&gt; #('Simular' '01/07/2030' '15:30');
+		add: #cargarDatosPrueba -&gt; #(true);
+		add: #nuevaReserva -&gt; #('Ruiz' 'Alfa' 'B1 B2');
+		add: #cancelarReserva -&gt; #('Lopez' true);
+		add: #pagarReserva -&gt; #('Lopez' 'tarjeta' 'credito' 'VISA' 'Ana Lopez' '1234' '3');
+		add: #ventaDirecta -&gt; #('Alfa' 'C1 C2' true 'Ruiz' 'transferencia' 'beto.mp' '000123');
+		add: #consultaSalaLibre -&gt; #('Sala Cine' '15/06/2030' '19:00' '15/06/2030' '23:00');
+		add: #consultaFuncionesPorFecha -&gt; #('15/06/2030');
+		add: #consultaFuncionesPorObra -&gt; #('Alfa');
+		add: #consultaIngresos -&gt; #('01/06/2030' '30/06/2030');
+		add: #consultaPlano -&gt; #('Alfa');
+		add: #consultaHistorialSocio -&gt; #('Lopez');
+		add: #consultaParticipaciones -&gt; #('Paz');
+		yourself</body>
+
+<body package="CineTeatro-Tests" selector="guionDe:">guionDe: unBoton
+	^(self guiones detect: [:g | g key = unBoton]) value</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>todos los botones</category>
+
+<body package="CineTeatro-Tests" selector="testHay51BotonesYCadaUnoTieneSuMetodo">testHay51BotonesYCadaUnoTieneSuMetodo
+	| botones |
+	botones := self botones.
+	self assert: botones size equals: 51.
+	self assert: botones asSet size equals: 51.
+	botones do: [:b | self assert: (VentanaCine includesSelector: b) description: 'Falta el metodo ' , b asString]</body>
+
+<body package="CineTeatro-Tests" selector="testCadaBotonTieneGuionOEsSinDialogos">testCadaBotonTieneGuionOEsSinDialogos
+	"Asi las pruebas generales de abajo no se saltean ningun boton"
+	| cubiertos |
+	cubiertos := (self guiones collect: [:g | g key]) asOrderedCollection.
+	cubiertos addAll: self botonesSinDialogos.
+	self assert: cubiertos size equals: 51.
+	self botones do: [:b | self assert: (cubiertos includes: b) description: 'Boton sin guion: ' , b asString]</body>
+
+<body package="CineTeatro-Tests" selector="testLaVentanaEntraEnUnaPantallaDe768DeAlto">testLaVentanaEntraEnUnaPantallaDe768DeAlto
+	"De los 768 pixeles hay que descontar la barra de tareas y el titulo: quedan unos 700"
+	| spec ventanaSpec limites ancho alto |
+	spec := VentanaCine windowSpec.
+	ventanaSpec := spec at: (spec indexOf: #window:) + 1.
+	limites := ventanaSpec at: (ventanaSpec indexOf: #bounds:) + 1.
+	ancho := (limites at: 4) - (limites at: 2).
+	alto := (limites at: 5) - (limites at: 3).
+	self assert: (limites at: 5) &lt;= 700.
+	self assert: ancho &lt;= 1366.
+	"Y ningun boton queda fuera de la ventana"
+	self elementosDeLaVentana do: [:e |
+		e first value == UI.ActionButtonSpec ifTrue: [| rectangulo |
+			rectangulo := e at: (e indexOf: #layout:) + 1.
+			self assert: (rectangulo at: 4) &lt;= ancho.
+			self assert: (rectangulo at: 5) &lt;= alto]]</body>
+
+<body package="CineTeatro-Tests" selector="testConElSistemaVacioNingunBotonSeRompe">testConElSistemaVacioNingunBotonSeRompe
+	"Sin datos, los botones que necesitan elegir algo avisan que no hay nada para elegir"
+	self borrarCarpeta.
+	admin := AdministradorCine enCarpeta: self carpeta.
+	admin simularFecha: self hoy hora: (self hora: 10).
+	ventana := VentanaCineDePrueba conAdministrador: admin.
+	self botones do: [:b |
+		self usar: b con: #().
+		self assert: ventana avisos size &lt;= 1].
+	self assert: admin personas isEmpty.
+	self assert: admin salas isEmpty.
+	self assert: admin funciones isEmpty.
+	self assert: (self avisoDe: #bajaPersona con: #()) contiene: 'No hay elementos para elegir'.
+	self assert: (self avisoDe: #nuevaReserva con: #()) contiene: 'No hay elementos para elegir'.
+	self assert: ventana texto contiene: 'ATENCION: No hay elementos'</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarElPrimerDialogoNoCambiaNada">testCancelarElPrimerDialogoNoCambiaNada
+	"Se aprieta cada boton y se cancela enseguida (los que no preguntan nada solo muestran su listado)"
+	| antes |
+	antes := self huella.
+	self botones do: [:b |
+		self usar: b con: #().
+		self assert: ventana avisos isEmpty description: b asString , ' mostro un aviso: ' , ventana ultimoAviso].
+	self assert: self huella equals: antes</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarEnCualquierPasoNoCambiaNada">testCancelarEnCualquierPasoNoCambiaNada
+	"Para cada boton se contesta bien hasta cierto dialogo y se cancela el siguiente.
+	 Solo se cancelan los dialogos que tienen Cancelar: en los de Si/No no hay como."
+	| antes |
+	antes := self huella.
+	self guiones do: [:g | | respuestas |
+		respuestas := g value.
+		1 to: respuestas size - 1 do: [:k | | siguiente |
+			siguiente := respuestas at: k + 1.
+			(siguiente == true or: [siguiente == false]) ifFalse: [
+				self usar: g key con: (respuestas copyFrom: 1 to: k).
+				self assert: ventana avisos isEmpty description: g key asString , ' mostro un aviso al cancelar: ' , ventana ultimoAviso.
+				self assert: self huella = antes description: g key asString , ' cambio datos al cancelar en el dialogo ' , (k + 1) printString]]]</body>
+
+<body package="CineTeatro-Tests" selector="testContestarQueNoEnLasConfirmacionesNoCambiaNada">testContestarQueNoEnLasConfirmacionesNoCambiaNada
+	| antes |
+	antes := self huella.
+	#(#bajaPersona #bajaSocio #bajaCritico #bajaCritica #bajaSala #bajaObra #eliminarFuncion #cargarDatosPrueba #cancelarReserva) do: [:b | | respuestas |
+		respuestas := (self guionDe: b) copy.
+		respuestas at: respuestas size put: false.
+		self usarBien: b con: respuestas.
+		self assert: self huella = antes description: b asString , ' cambio datos aunque se contesto que no']</body>
+
+<body package="CineTeatro-Tests" selector="testCadaGuionCompletoTerminaBien">testCadaGuionCompletoTerminaBien
+	"Cada boton, con datos nuevos cada vez, contestando todo bien: no hay avisos ni preguntas de mas"
+	self guiones do: [:g |
+		self tearDown.
+		self setUp.
+		self usarBien: g key con: g value]</body>
+
+<body package="CineTeatro-Tests" selector="testUnErrorDeNegocioSeMuestraComoAvisoYEnElPanel">testUnErrorDeNegocioSeMuestraComoAvisoYEnElPanel
+	| aviso |
+	aviso := self avisoDe: #bajaPersona con: #('Lopez' true).
+	self assert: ventana texto equals: 'ATENCION: ' , aviso</body>
+
+<body package="CineTeatro-Tests" selector="testBienvenida">testBienvenida
+	ventana mostrarBienvenida.
+	self assert: ventana texto contiene: 'pruebasCineTmp'.
+	self assert: ventana texto contiene: '10/06/2030 10:00 (SIMULADA)'.
+	self assert: ventana texto contiene: 'Personas: 6'.
+	self assert: ventana texto contiene: 'Socios: 3 (2 activos)'.
+	self assert: ventana texto contiene: 'Peliculas/obras: 3 (3 en cartel)'.
+	self assert: ventana texto contiene: 'Reservas: 1 (1 pendientes de pago)'.
+	self assert: ventana texto contiene: 'Ventas: 0'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>personas</category>
+
+<body package="CineTeatro-Tests" selector="testAltaPersona">testAltaPersona
+	| p |
+	self usarBien: #altaPersona con: #('Eva Sol' '30111222' '01/02/1995' 'F' 'Calle 9' 'eva@mail.com' '').
+	p := admin personaConDni: '30111222'.
+	self assert: p nombre equals: 'Eva Sol'.
+	self assert: p fechaNacimiento equals: (Date newDay: 1 monthNumber: 2 year: 1995).
+	self assert: p sexo equals: 'F'.
+	self assert: p email equals: 'eva@mail.com'.
+	self assert: p celular equals: ''.
+	self assert: ventana texto contiene: 'Persona registrada'.
+	self assert: ventana texto contiene: 'Eva Sol'.
+	self assert: self releer personas size equals: 7</body>
+
+<body package="CineTeatro-Tests" selector="testAltaPersonaConDniRepetidoAvisaSinPedirElResto">testAltaPersonaConDniRepetidoAvisaSinPedirElResto
+	| aviso |
+	aviso := self avisoDe: #altaPersona con: (Array with: 'Otra Ana' with: (self personaDe: ana) dni with: '01/02/1995').
+	self assert: aviso contiene: 'Ya existe una persona con DNI'.
+	self assert: ventana preguntas size equals: 2.
+	self assert: admin personas size equals: 6</body>
+
+<body package="CineTeatro-Tests" selector="testAltaPersonaConDatosInvalidos">testAltaPersonaConDatosInvalidos
+	self assert: (self avisoDe: #altaPersona con: #('Eva Sol' '30x11')) contiene: 'El DNI debe ser numerico'.
+	self assert: (self avisoDe: #altaPersona con: #('Eva Sol' '30111222' '31/02/1995')) contiene: 'Fecha'.
+	self assert: (self avisoDe: #altaPersona con: #('Eva Sol' '30111222' '1/2/95')) contiene: 'anio completo'.
+	self assert: (self avisoDe: #altaPersona con: #('Eva Sol' '30111222' '01/02/2031' 'F' '' '' '')) contiene: 'no puede ser futura'.
+	self assert: admin personas size equals: 6</body>
+
+<body package="CineTeatro-Tests" selector="testAltaPersonaCanceladaEnUnDatoOpcionalNoCreaNada">testAltaPersonaCanceladaEnUnDatoOpcionalNoCreaNada
+	"Antes, cancelar en Domicilio, Email o Celular dejaba el dato vacio y la persona se creaba igual"
+	self usar: #altaPersona con: #('Eva Sol' '30111222' '01/02/1995' 'F' 'Calle 9').
+	self assert: ventana avisos isEmpty.
+	self assert: ventana preguntas last contiene: 'Email (opcional)'.
+	self assert: admin personas size equals: 6</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaCambiaSoloElDatoElegido">testModificarPersonaCambiaSoloElDatoElegido
+	| p |
+	p := self personaDe: ana.
+	self usarBien: #modificarPersona con: #('Lopez' 'DNI:' '40999888').
+	self assert: p dni equals: '40999888'.
+	self assert: p nombre equals: 'Ana Lopez'.
+	self assert: p domicilio equals: 'Calle 1'.
+	self assert: ventana texto contiene: 'Persona modificada'.
+	self assert: (self releer personaId: p id) dni equals: '40999888'</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaCadaDato">testModificarPersonaCadaDato
+	| p |
+	p := self personaDe: ana.
+	self usarBien: #modificarPersona con: #('Lopez' 'Nombre y apellido:' 'Ana Maria Lopez').
+	self usarBien: #modificarPersona con: #('Lopez' 'Fecha de nacimiento:' '02/03/1980').
+	self usarBien: #modificarPersona con: #('Lopez' 'Sexo:' 'X').
+	self usarBien: #modificarPersona con: #('Lopez' 'Domicilio:' 'Av. Siempreviva 742').
+	self usarBien: #modificarPersona con: #('Lopez' 'Email:' 'ana@correo.com').
+	self usarBien: #modificarPersona con: #('Lopez' 'Celular:' '').
+	self assert: p nombre equals: 'Ana Maria Lopez'.
+	self assert: p fechaNacimiento equals: (Date newDay: 2 monthNumber: 3 year: 1980).
+	self assert: p sexo equals: 'X'.
+	self assert: p domicilio equals: 'Av. Siempreviva 742'.
+	self assert: p email equals: 'ana@correo.com'.
+	self assert: p celular equals: ''.
+	self assert: p dni equals: '20000001'</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaConErrores">testModificarPersonaConErrores
+	| aviso |
+	aviso := self avisoDe: #modificarPersona con: (Array with: 'Lopez' with: 'DNI:' with: (self personaDe: beto) dni).
+	self assert: aviso contiene: 'Ya existe una persona con DNI'.
+	self assert: (self avisoDe: #modificarPersona con: #('Lopez' 'DNI:' 'abc')) contiene: 'El DNI debe ser numerico'.
+	self assert: (self avisoDe: #modificarPersona con: #('Lopez' 'Fecha de nacimiento:' '01/01/2031')) contiene: 'no puede ser futura'.
+	"Aceptar el valor que ya estaba no es un error: el DNI propio no cuenta como repetido"
+	self usarBien: #modificarPersona con: #('Lopez' 'DNI:' #inicial).
+	self assert: (self personaDe: ana) dni equals: '20000001'</body>
+
+<body package="CineTeatro-Tests" selector="testBajaPersona">testBajaPersona
+	self usarBien: #bajaPersona con: #('Gil' true).
+	self assert: (admin personaConDni: fede dni) isNil.
+	self assert: ventana texto contiene: 'Se elimino a Fede Gil'.
+	self assert: (self avisoDe: #bajaPersona con: #('Lopez' true)) contiene: 'es o fue socio'.
+	self assert: (self avisoDe: #bajaPersona con: #('Diaz' true)) contiene: 'es critico'.
+	self assert: admin personas size equals: 5</body>
+
+<body package="CineTeatro-Tests" selector="testListarPersonasMuestraElRolDeCadaUna">testListarPersonasMuestraElRolDeCadaUna
+	self usarBien: #listarPersonas con: #().
+	self assert: ventana texto contiene: 'PERSONAS (6)'.
+	self assert: ventana texto contiene: 'Ana Lopez'.
+	self assert: ventana texto contiene: 'Socio inactivo'.
+	self assert: ventana texto contiene: 'Critico, Actor/Actriz'.
+	self assert: ventana texto contiene: 'Cliente'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>socios</category>
+
+<body package="CineTeatro-Tests" selector="testAltaSocio">testAltaSocio
+	"Solo se ofrecen las personas que todavia no son socias"
+	self usar: #altaSocio con: #().
+	self assert: ventana opciones size equals: 3.
+	self usarBien: #altaSocio con: #('Gil').
+	self assert: (admin socioDePersona: fede id) estaActivo.
+	self assert: ventana texto contiene: 'Nuevo socio'.
+	self assert: ventana texto contiene: '20% de descuento'</body>
+
+<body package="CineTeatro-Tests" selector="testBajaYReactivacionDeSocio">testBajaYReactivacionDeSocio
+	self usarBien: #bajaSocio con: #('Ruiz' true).
+	self deny: beto estaActivo.
+	self assert: ventana texto contiene: 'Beto Ruiz (inactivo)'.
+	"Para dar de baja solo se ofrecen los activos (queda Ana), y para reactivar los inactivos"
+	self usar: #bajaSocio con: #().
+	self assert: ventana opciones size equals: 1.
+	self usar: #reactivarSocio con: #().
+	self assert: ventana opciones size equals: 2.
+	self usarBien: #reactivarSocio con: #('Ruiz').
+	self assert: beto estaActivo.
+	self assert: ventana texto contiene: 'Socio reactivado'</body>
+
+<body package="CineTeatro-Tests" selector="testListarSocios">testListarSocios
+	self usarBien: #listarSocios con: #().
+	self assert: ventana texto contiene: 'SOCIOS (3)'.
+	self assert: ventana texto contiene: 'Elsa Mora'.
+	self assert: ventana texto contiene: 'Total gastado'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>criticos</category>
+
+<body package="CineTeatro-Tests" selector="testAltaCritico">testAltaCritico
+	self usarBien: #altaCritico con: #('Gil' 'fedeg').
+	self assert: admin criticos size equals: 3.
+	self assert: ventana texto contiene: '@fedeg'.
+	self assert: (self avisoDe: #altaCritico con: #('Lopez' 'carlad')) contiene: 'El nombre de usuario ya existe'.
+	"Quien ya es critico no se vuelve a ofrecer"
+	self usar: #altaCritico con: #().
+	self assert: ventana opciones size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testRegistrarCritica">testRegistrarCritica
+	self usarBien: #registrarCritica con: #('carlad' 'Beta' 'Muy buena' '9').
+	self assert: beta criticas size equals: 1.
+	self assert: ventana texto contiene: 'Critica registrada para "Beta"'.
+	self assert: ventana texto contiene: 'Nuevo promedio: 9.0'.
+	"Solo se ofrecen peliculas: las obras de teatro no tienen criticas"
+	self usar: #registrarCritica con: #('carlad').
+	self assert: ventana opciones size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testRegistrarCriticaConPuntajeInvalido">testRegistrarCriticaConPuntajeInvalido
+	self assert: (self avisoDe: #registrarCritica con: #('dariop' 'Beta' 'Mala' '11')) contiene: 'entre 1 y 10'.
+	self assert: (self avisoDe: #registrarCritica con: #('dariop' 'Beta' 'Mala' 'diez')) contiene: 'numero entero'.
+	self assert: beta criticas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testEliminarCriticaYDespuesAlCritico">testEliminarCriticaYDespuesAlCritico
+	self assert: (self avisoDe: #bajaCritico con: #('carlad' true)) contiene: 'Elimine primero sus criticas'.
+	self usarBien: #bajaCritica con: #('carlad' 'Alfa' true).
+	self assert: alfa criticas isEmpty.
+	self assert: ventana texto contiene: 'Critica eliminada de "Alfa"'.
+	self usarBien: #bajaCritico con: #('carlad' true).
+	self assert: admin criticos size equals: 1.
+	self assert: ventana texto contiene: 'Carla Diaz sigue en la lista de personas'.
+	self assert: admin personas size equals: 6.
+	"Ya no queda ningun critico que haya escrito criticas"
+	self assert: (self avisoDe: #bajaCritica con: #()) contiene: 'No hay elementos para elegir'</body>
+
+<body package="CineTeatro-Tests" selector="testListarCriticos">testListarCriticos
+	self usarBien: #listarCriticos con: #().
+	self assert: ventana texto contiene: 'CRITICOS (2)'.
+	self assert: ventana texto contiene: '@carlad'.
+	self assert: ventana texto contiene: 'criticas: 1'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>salas</category>
+
+<body package="CineTeatro-Tests" selector="testAltaSala">testAltaSala
+	| sala |
+	self usarBien: #altaSala con: #('Sala Nueva' '2' '3' true false).
+	sala := admin salas last.
+	self assert: sala nombre equals: 'Sala Nueva'.
+	self assert: sala capacidad equals: 6.
+	self assert: sala permitePeliculas.
+	self deny: sala permiteTeatro.
+	self assert: ventana texto contiene: 'Sala registrada'.
+	self assert: ventana texto contiene: 'PANTALLA / ESCENARIO'</body>
+
+<body package="CineTeatro-Tests" selector="testAltaSalaConErrores">testAltaSalaConErrores
+	self assert: (self avisoDe: #altaSala con: #('Sala Cine' '2' '3' true false)) contiene: 'Ya existe una sala con ese nombre'.
+	self assert: (self avisoDe: #altaSala con: #('Sala Nueva' '0' '3' true false)) contiene: 'entre 1 y 26'.
+	self assert: (self avisoDe: #altaSala con: #('Sala Nueva' '2' 'tres')) contiene: 'numero entero'.
+	self assert: (self avisoDe: #altaSala con: #('Sala Nueva' '2' '3' false false)) contiene: 'debe permitir peliculas, teatro o ambos'.
+	self assert: admin salas size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testModificarSala">testModificarSala
+	self usarBien: #modificarSala con: #('Sala Chica' 'Nombre:' 'Sala VIP').
+	self assert: chica nombre equals: 'Sala VIP'.
+	self usarBien: #modificarSala con: #('Sala VIP' 'Butacas:' '2' '3').
+	self assert: chica capacidad equals: 6.
+	self usarBien: #modificarSala con: #('Sala VIP' 'Tipos de obra:' true true).
+	self assert: chica permiteTeatro.
+	self assert: ventana texto contiene: 'Sala modificada'.
+	self assert: ventana texto contiene: 'Peliculas y teatro'.
+	self assert: (self releer salaId: chica id) capacidad equals: 6</body>
+
+<body package="CineTeatro-Tests" selector="testModificarSalaConErrores">testModificarSalaConErrores
+	self assert: (self avisoDe: #modificarSala con: #('Sala Cine' 'Butacas:' '5' '5')) contiene: 'la sala ya tiene funciones'.
+	self assert: (self avisoDe: #modificarSala con: #('Sala Cine' 'Tipos de obra:' false true)) contiene: 'No se puede quitar ese tipo de obra'.
+	self assert: (self avisoDe: #modificarSala con: #('Sala Chica' 'Nombre:' 'Sala Cine')) contiene: 'Ya existe una sala con ese nombre'.
+	self assert: cine capacidad equals: 12.
+	self assert: cine permitePeliculas</body>
+
+<body package="CineTeatro-Tests" selector="testBajaSala">testBajaSala
+	self usarBien: #bajaSala con: #('Sala Chica' true).
+	self assert: admin salas size equals: 2.
+	self assert: ventana texto contiene: 'Se elimino la sala Sala Chica'.
+	self assert: (self avisoDe: #bajaSala con: #('Sala Cine' true)) contiene: 'tiene 1 funcion/es'.
+	self assert: admin salas size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testListarSalas">testListarSalas
+	self usarBien: #listarSalas con: #().
+	self assert: ventana texto contiene: 'SALAS (3)'.
+	self assert: ventana texto contiene: 'Sala Teatro (10 butacas, Solo teatro)'.
+	self assert: ventana texto contiene: 'PANTALLA / ESCENARIO'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>peliculas y obras</category>
+
+<body package="CineTeatro-Tests" selector="testAltaPeliculaYObraDeTeatro">testAltaPeliculaYObraDeTeatro
+	| o |
+	self usarBien: #altaPelicula con: #('Gamma' 'Una de accion' '120' '+13' 'sin director').
+	o := admin obras last.
+	self assert: o esPelicula.
+	self assert: o titulo equals: 'Gamma'.
+	self assert: o duracion equals: 120.
+	self assert: o clasificacion equals: '+13'.
+	self assert: o director isNil.
+	self assert: ventana texto contiene: 'Registrada: '.
+	self usarBien: #altaObraTeatro con: #('Otelo' '' '95' '+16' 'Paz').
+	o := admin obras last.
+	self deny: o esPelicula.
+	self assert: o descripcion equals: ''.
+	self assert: o director equals: dario id</body>
+
+<body package="CineTeatro-Tests" selector="testAltaPeliculaConErrores">testAltaPeliculaConErrores
+	self assert: (self avisoDe: #altaPelicula con: #('Gamma' '' 'larga')) contiene: 'numero entero'.
+	self assert: (self avisoDe: #altaPelicula con: #('Gamma' '' '0' 'ATP' 'sin director')) contiene: 'La duracion debe ser mayor a cero'.
+	self assert: admin obras size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testModificarObra">testModificarObra
+	self usarBien: #modificarObra con: #('Beta' 'Titulo:' 'Beta 2').
+	self usarBien: #modificarObra con: #('Beta 2' 'Descripcion:' '').
+	self usarBien: #modificarObra con: #('Beta 2' 'Duracion en minutos:' '110').
+	self usarBien: #modificarObra con: #('Beta 2' 'Clasificacion:' '+18').
+	self usarBien: #modificarObra con: #('Beta 2' 'Director:' 'Lopez').
+	self assert: beta titulo equals: 'Beta 2'.
+	self assert: beta descripcion equals: ''.
+	self assert: beta duracion equals: 110.
+	self assert: beta clasificacion equals: '+18'.
+	self assert: beta director equals: ana idPersona.
+	self assert: ventana texto contiene: 'Modificada: '.
+	"Con funciones que todavia no empezaron no se puede cambiar la duracion (cambiaria el horario de fin)"
+	self assert: (self avisoDe: #modificarObra con: #('Alfa' 'Duracion en minutos:' '50')) contiene: 'No se puede cambiar la duracion'.
+	self assert: alfa duracion equals: 100</body>
+
+<body package="CineTeatro-Tests" selector="testBajaObra">testBajaObra
+	admin registrarCriticaDe: carla id obra: beta id resena: 'Floja' puntaje: 4.
+	"La confirmacion avisa que tambien se van las criticas"
+	self usarBien: #bajaObra con: #('Beta' false).
+	self assert: ventana preguntas last contiene: 'tiene 1 critica/s, que tambien se eliminan'.
+	self assert: admin obras size equals: 3.
+	self usarBien: #bajaObra con: #('Beta' true).
+	self assert: admin obras size equals: 2.
+	self assert: ventana texto contiene: 'Se elimino "Beta"'.
+	self assert: (self avisoDe: #bajaObra con: #('Alfa' true)) contiene: 'saquela de cartel'.
+	self assert: admin obras size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testAgregarYQuitarDelElenco">testAgregarYQuitarDelElenco
+	self usarBien: #agregarElenco con: #('Beta' 'Lopez').
+	self assert: (beta elenco includes: ana idPersona).
+	self assert: ventana texto contiene: 'Ana Lopez se agrego al elenco de "Beta"'.
+	"Quien ya esta en el elenco no se vuelve a ofrecer"
+	self usar: #agregarElenco con: #('Beta').
+	self assert: ventana opciones size equals: 5.
+	self usarBien: #quitarElenco con: #('Beta' 'Lopez').
+	self assert: beta elenco isEmpty.
+	self assert: ventana texto contiene: 'se quito del elenco'.
+	"Para quitar solo se ofrecen las obras con elenco (Alfa) y, de ellas, sus integrantes (Dario)"
+	self usar: #quitarElenco con: #().
+	self assert: ventana opciones size equals: 1.
+	self usar: #quitarElenco con: #('Alfa').
+	self assert: ventana opciones size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testPonerYSacarDeCartel">testPonerYSacarDeCartel
+	self usarBien: #cambiarEstadoCartel con: #('Beta').
+	self deny: beta estaEnCartel.
+	"Fuera de cartel ya no se ofrece para programarle funciones"
+	self usar: #programarFuncion con: #().
+	self assert: ventana opciones size equals: 2.
+	self usarBien: #cambiarEstadoCartel con: #('Beta').
+	self assert: beta estaEnCartel</body>
+
+<body package="CineTeatro-Tests" selector="testListarObras">testListarObras
+	self usarBien: #listarObras con: #().
+	self assert: ventana texto contiene: 'PELICULAS Y OBRAS (3)'.
+	self assert: ventana texto contiene: 'Elenco: Dario Paz'.
+	self assert: ventana texto contiene: 'promedio: 8.0'.
+	self assert: ventana texto contiene: '@carlad'.
+	self assert: ventana texto contiene: 'Obra de teatro'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>funciones</category>
+
+<body package="CineTeatro-Tests" selector="testProgramarFuncion">testProgramarFuncion
+	| f |
+	self usarBien: #programarFuncion con: #('Beta' 'Sala Cine' '20/06/2030' '18:30' '5.000').
+	f := admin funciones last.
+	self assert: f idObra equals: beta id.
+	self assert: f fecha equals: (self dia: 10).
+	self assert: f horaInicio equals: (self hora: 18 minutos: 30).
+	self assert: f precioEntrada equals: 5000.
+	self assert: ventana texto contiene: 'Funcion programada'.
+	self assert: ventana texto contiene: '$ 5.000,00'</body>
+
+<body package="CineTeatro-Tests" selector="testProgramarFuncionConLosValoresSugeridos">testProgramarFuncionConLosValoresSugeridos
+	"Los dialogos proponen maniana a las 20:00 y $ 5000: se pueden aceptar tal cual"
+	| f |
+	self usarBien: #programarFuncion con: #('Beta' 'Sala Chica' #inicial #inicial #inicial).
+	f := admin funciones last.
+	self assert: f fecha equals: (self dia: 1).
+	self assert: f horaInicio equals: (self hora: 20).
+	self assert: f precioEntrada equals: 5000</body>
+
+<body package="CineTeatro-Tests" selector="testProgramarFuncionSoloOfreceSalasQueAdmitenLaObra">testProgramarFuncionSoloOfreceSalasQueAdmitenLaObra
+	self usar: #programarFuncion con: #('Hamlet').
+	self assert: ventana preguntas last contiene: 'Obra de teatro'.
+	self assert: ventana opciones size equals: 1.
+	self assert: ventana opciones first contiene: 'Sala Teatro'</body>
+
+<body package="CineTeatro-Tests" selector="testProgramarFuncionConErrores">testProgramarFuncionConErrores
+	self assert: (self avisoDe: #programarFuncion con: #('Beta' 'Sala Cine' '15/06/2030' '21:00' '1000')) contiene: 'La sala no esta libre en ese horario'.
+	self assert: (self avisoDe: #programarFuncion con: #('Beta' 'Sala Cine' '09/06/2030' '21:00' '1000')) contiene: 'en el pasado'.
+	self assert: (self avisoDe: #programarFuncion con: #('Beta' 'Sala Cine' '20/06/2030' '25:00')) contiene: 'Hora fuera de rango'.
+	self assert: (self avisoDe: #programarFuncion con: #('Beta' 'Sala Cine' '20/06/2030' '21:00' 'mil')) contiene: 'Importe invalido'.
+	self assert: (self avisoDe: #programarFuncion con: #('Beta' 'Sala Cine' '20/06/2030' '21:00' '0')) contiene: 'mayor a cero'.
+	self assert: admin funciones size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testCambiarPrecio">testCambiarPrecio
+	"El importe se escribe a la argentina: punto para los miles, coma para los centavos"
+	self usarBien: #cambiarPrecio con: #('Alfa' '5.000').
+	self assert: funcion precioEntrada equals: 5000.
+	self usarBien: #cambiarPrecio con: #('Alfa' '4.500,50').
+	self assert: funcion precioEntrada equals: 9001 / 2.
+	self assert: ventana texto contiene: '$ 4.500,50'.
+	"El dialogo propone el precio actual en un formato que despues se entiende igual"
+	self usarBien: #cambiarPrecio con: #('Alfa' #inicial).
+	self assert: funcion precioEntrada equals: 9001 / 2.
+	self assert: (self avisoDe: #cambiarPrecio con: #('Alfa' 'gratis')) contiene: 'Importe invalido'.
+	self assert: funcion precioEntrada equals: 9001 / 2</body>
+
+<body package="CineTeatro-Tests" selector="testEliminarFuncion">testEliminarFuncion
+	self usarBien: #eliminarFuncion con: #('Hamlet' true).
+	self assert: admin funciones size equals: 1.
+	self assert: ventana texto contiene: 'Funcion eliminada'.
+	"La de Alfa tiene una reserva: no se puede eliminar, ni siquiera despues de cancelarla"
+	self assert: (self avisoDe: #eliminarFuncion con: #('Alfa' true)) contiene: 'la funcion tiene reservas'.
+	admin cancelarReserva: reserva id.
+	self assert: (self avisoDe: #eliminarFuncion con: #('Alfa' true)) contiene: 'aunque esten canceladas'.
+	self assert: admin funciones size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testListarFunciones">testListarFunciones
+	self usarBien: #listarFunciones con: #().
+	self assert: ventana texto contiene: 'FUNCIONES (2)'.
+	self assert: ventana texto contiene: '[futura] '.
+	self deny: ventana texto contiene: '[pasada] '.
+	self ponerReloj: (self dia: 5) hora: (self hora: 21).
+	self usarBien: #listarFunciones con: #().
+	self assert: ventana texto contiene: '[pasada] '</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>sistema</category>
+
+<body package="CineTeatro-Tests" selector="testFechaSistemaSimulada">testFechaSistemaSimulada
+	self usarBien: #fechaSistema con: #('Simular' '01/07/2030' '15:30').
+	self assert: admin hoy equals: (Date newDay: 1 monthNumber: 7 year: 2030).
+	self assert: admin horaActual equals: (self hora: 15 minutos: 30).
+	self assert: ventana texto contiene: '01/07/2030 15:30 (SIMULADA)'.
+	"Con una fecha mal escrita se avisa y el reloj queda como estaba"
+	self assert: (self avisoDe: #fechaSistema con: #('Simular' '32/07/2030')) contiene: 'Fecha'.
+	self assert: admin hoy equals: (Date newDay: 1 monthNumber: 7 year: 2030)</body>
+
+<body package="CineTeatro-Tests" selector="testFechaSistemaReal">testFechaSistemaReal
+	self usarBien: #fechaSistema con: #('real de la computadora').
+	self deny: admin usaRelojSimulado.
+	self assert: ventana texto contiene: '(real)'</body>
+
+<body package="CineTeatro-Tests" selector="testCargarDatosDePrueba">testCargarDatosDePrueba
+	self usarBien: #cargarDatosPrueba con: #(true).
+	self assert: ventana preguntas first contiene: 'Se borraran TODOS los datos'.
+	self assert: admin personas size equals: 18.
+	self assert: ventana texto contiene: 'Personas: 18'.
+	self assert: self releer personas size equals: 18</body>
+
+<body package="CineTeatro-Tests" selector="testRecargarDesdeDisco">testRecargarDesdeDisco
+	"Descarta lo que haya en memoria y vuelve a leer los archivos"
+	(self personaDe: ana) nombre: 'Cambiada sin guardar'.
+	self usarBien: #recargarDisco con: #().
+	self assert: (admin personaId: 1) nombre equals: 'Ana Lopez'.
+	self assert: ventana texto contiene: 'Personas: 6'</body>
+
+<body package="CineTeatro-Tests" selector="testRecargarConUnArchivoDaniadoAvisaYNoDejaGrabar">testRecargarConUnArchivoDaniadoAvisaYNoDejaGrabar
+	| archivo |
+	archivo := (self carpeta asFilename construct: 'salas.bos') writeStream.
+	archivo nextPutAll: 'esto no es una lista'; close.
+	self assert: (self avisoDe: #recargarDisco con: #()) contiene: 'No se pudo leer: salas.bos'.
+	self assert: ventana texto contiene: 'ATENCION: No se pudo leer'.
+	"Mientras tanto no se graba nada: el cambio se descarta y se avisa"
+	self assert: (self avisoDe: #altaSocio con: #('Gil')) contiene: 'El ultimo cambio se descarto'.
+	self assert: (admin socioDePersona: 6) isNil</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>reservas y ventas</category>
+
+<body package="CineTeatro-Tests" selector="testNuevaReserva">testNuevaReserva
+	| r |
+	self usarBien: #nuevaReserva con: #('Ruiz' 'Alfa' 'b1, B2').
+	r := (admin reservasDeSocio: beto id) first.
+	self assert: r estaPendiente.
+	self assert: r cantidadButacas equals: 2.
+	self assert: funcion butacasLibres equals: 8.
+	self assert: ventana texto contiene: 'registrada a nombre de Beto Ruiz (pendiente de pago)'.
+	self assert: ventana texto contiene: 'A pagar: $ 1.600,00'</body>
+
+<body package="CineTeatro-Tests" selector="testNuevaReservaSoloOfreceSociosActivos">testNuevaReservaSoloOfreceSociosActivos
+	self usar: #nuevaReserva con: #().
+	self assert: ventana opciones size equals: 2.
+	ventana opciones do: [:etiqueta | self deny: etiqueta contiene: 'Mora']</body>
+
+<body package="CineTeatro-Tests" selector="testNuevaReservaConErrores">testNuevaReservaConErrores
+	self assert: (self avisoDe: #nuevaReserva con: #('Ruiz' 'Alfa' 'A1')) contiene: 'La butaca A1 ya esta reservada o vendida'.
+	self assert: (self avisoDe: #nuevaReserva con: #('Ruiz' 'Alfa' 'Z9')) contiene: 'no existe en la sala'.
+	self assert: (self avisoDe: #nuevaReserva con: #('Ruiz' 'Alfa' 'B1 B1')) contiene: 'Hay butacas repetidas'.
+	self assert: admin todasLasReservas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarReserva">testCancelarReserva
+	self usarBien: #cancelarReserva con: #('Lopez' true).
+	self assert: reserva estaCancelada.
+	self assert: ventana texto contiene: 'Reserva cancelada sin costo'.
+	self assert: funcion butacasLibres equals: 12.
+	"Ya no quedan reservas pendientes"
+	self assert: (self avisoDe: #cancelarReserva con: #()) contiene: 'No hay elementos para elegir'</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarReservaConMenosDe24HorasAvisa">testCancelarReservaConMenosDe24HorasAvisa
+	self ponerReloj: (self dia: 4) hora: (self hora: 21).
+	self assert: (self avisoDe: #cancelarReserva con: #('Lopez' true)) contiene: 'Faltan menos de 24 horas'.
+	self assert: reserva estaPendiente</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaEnEfectivo">testPagarReservaEnEfectivo
+	| v |
+	self usarBien: #pagarReserva con: #('Lopez' 'efectivo').
+	v := admin todasLasVentas first.
+	self assert: v monto equals: 1600.
+	self assert: reserva estaConfirmada.
+	self assert: ventana texto contiene: 'VENTA #1'.
+	self assert: ventana texto contiene: 'Cliente: Socio Ana Lopez (20% desc.)'.
+	self assert: ventana texto contiene: 'Reserva: #1'.
+	self assert: ventana texto contiene: 'Medio de pago: Efectivo'.
+	self assert: ventana texto contiene: 'TOTAL: $ 1.600,00'</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaConTarjetaDeCredito">testPagarReservaConTarjetaDeCredito
+	"La marca se acepta como viene (VISA) y se piden las cuotas"
+	self usarBien: #pagarReserva con: #('Lopez' 'tarjeta' 'credito' #inicial 'Ana Lopez' '1234' '3').
+	self assert: admin todasLasVentas first medioPago descripcion equals: 'Tarjeta de credito VISA **** 1234 (3 cuota/s) titular: Ana Lopez'</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaConTarjetaDeDebitoNoPideCuotas">testPagarReservaConTarjetaDeDebitoNoPideCuotas
+	self usarBien: #pagarReserva con: #('Lopez' 'tarjeta' 'debito' 'MAESTRO' 'Ana Lopez' '9876').
+	self assert: ventana texto contiene: 'Tarjeta de debito MAESTRO'.
+	self assert: admin todasLasVentas first monto equals: 1600</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaConDatosDeTarjetaInvalidos">testPagarReservaConDatosDeTarjetaInvalidos
+	self assert: (self avisoDe: #pagarReserva con: #('Lopez' 'tarjeta' 'credito' 'VISA' 'Ana Lopez' '12')) contiene: 'exactamente 4 digitos'.
+	self assert: (self avisoDe: #pagarReserva con: #('Lopez' 'tarjeta' 'credito' 'VISA' 'Ana Lopez' '12a4')) contiene: 'exactamente 4 digitos'.
+	self assert: (self avisoDe: #pagarReserva con: #('Lopez' 'tarjeta' 'credito' 'VISA' 'Ana Lopez' '1234' '13')) contiene: 'Cantidad de cuotas invalida'.
+	self assert: reserva estaPendiente.
+	self assert: admin todasLasVentas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaPorTransferencia">testPagarReservaPorTransferencia
+	self usarBien: #pagarReserva con: #('Lopez' 'transferencia' 'ana.lopez.mp' '000123').
+	self assert: ventana texto contiene: 'Transferencia desde ana.lopez.mp (op. 000123)'</body>
+
+<body package="CineTeatro-Tests" selector="testPagarReservaCobraElPrecioDeCuandoSeReservo">testPagarReservaCobraElPrecioDeCuandoSeReservo
+	self usarBien: #cambiarPrecio con: #('Alfa' '2.000').
+	self usarBien: #pagarReserva con: #('Lopez' 'efectivo').
+	self assert: admin todasLasVentas first monto equals: 1600.
+	self assert: ventana texto contiene: 'TOTAL: $ 1.600,00'</body>
+
+<body package="CineTeatro-Tests" selector="testVentaDirectaANoSocio">testVentaDirectaANoSocio
+	| v |
+	self usarBien: #ventaDirecta con: #('Alfa' 'C1' false 'efectivo').
+	v := admin todasLasVentas first.
+	self assert: v monto equals: 1000.
+	self deny: v esDeSocio.
+	self assert: v esDirecta.
+	self assert: ventana texto contiene: 'Cliente: No socio'.
+	self assert: ventana texto contiene: '(venta directa)'.
+	self assert: funcion butacasLibres equals: 9</body>
+
+<body package="CineTeatro-Tests" selector="testVentaDirectaASocioConDescuento">testVentaDirectaASocioConDescuento
+	| v |
+	self usarBien: #ventaDirecta con: #('Alfa' 'C1 C2' true 'Ruiz' 'efectivo').
+	v := admin todasLasVentas first.
+	self assert: v monto equals: 1600.
+	self assert: v idSocio equals: beto id.
+	"Los socios inactivos no se ofrecen: no tienen descuento"
+	self usar: #ventaDirecta con: #('Alfa' 'C3' true).
+	self assert: ventana opciones size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testVentaDirectaConButacaOcupadaAvisaAntesDePedirElPago">testVentaDirectaConButacaOcupadaAvisaAntesDePedirElPago
+	self assert: (self avisoDe: #ventaDirecta con: #('Alfa' 'A1' false 'efectivo')) contiene: 'ya esta reservada o vendida'.
+	self assert: ventana preguntas size equals: 2.
+	self assert: admin todasLasVentas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testUnaFuncionAgotadaYaNoSeOfreceParaVender">testUnaFuncionAgotadaYaNoSeOfreceParaVender
+	| f |
+	f := self funcionDe: beta en: chica dia: 3 hora: 18.
+	self usarBien: #ventaDirecta con: #('Beta' 'A1 A2' false 'efectivo').
+	self assert: f estaAgotada.
+	self usar: #ventaDirecta con: #().
+	self assert: ventana opciones size equals: 2.
+	self usarBien: #consultaAgotadas con: #().
+	self assert: ventana texto contiene: 'Beta'.
+	"En las listas que muestran todas las funciones figura como agotada"
+	self usar: #consultaPlano con: #().
+	self assert: ventana opciones size equals: 3.
+	self assert: (ventana opciones anySatisfy: [:etiqueta | '*(AGOTADA)*' match: etiqueta])</body>
+
+<body package="CineTeatro-Tests" selector="testListarReservasYVentas">testListarReservasYVentas
+	self usarBien: #pagarReserva con: #('Lopez' 'efectivo').
+	self usarBien: #nuevaReserva con: #('Ruiz' 'Alfa' 'B1').
+	self usarBien: #listarReservas con: #().
+	self assert: ventana texto contiene: 'RESERVAS (2)'.
+	self assert: ventana texto contiene: ' | cancelable'.
+	self usarBien: #listarVentas con: #().
+	self assert: ventana texto contiene: 'VENTAS (1)'.
+	self assert: ventana texto contiene: 'Ana Lopez'.
+	self assert: ventana texto contiene: 'TOTAL: $ 1.600,00'</body>
+
+</methods>
+
+<methods>
+<class-id>VentanaCineTest</class-id> <category>consultas</category>
+
+<body package="CineTeatro-Tests" selector="testConsultaSalaLibre">testConsultaSalaLibre
+	self usarBien: #consultaSalaLibre con: #('Sala Cine' '15/06/2030' '19:00' '15/06/2030' '23:00').
+	self assert: ventana texto contiene: 'OCUPADA'.
+	self assert: ventana texto contiene: 'Alfa'.
+	self usarBien: #consultaSalaLibre con: #('Sala Chica' '15/06/2030' '19:00' '15/06/2030' '23:00').
+	self assert: ventana texto contiene: 'LIBRE'.
+	"Valores sugeridos: hoy, de 18 a 23"
+	self usarBien: #consultaSalaLibre con: #('Sala Cine' #inicial #inicial #inicial #inicial).
+	self assert: ventana texto contiene: 'Sala Cine entre 10/06/2030 18:00 y 10/06/2030 23:00: LIBRE'.
+	self assert: (self avisoDe: #consultaSalaLibre con: #('Sala Cine' '15/06/2030' '23:00' '15/06/2030' '19:00')) contiene: 'posterior al inicio'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaFuncionesPorFecha">testConsultaFuncionesPorFecha
+	self usarBien: #consultaFuncionesPorFecha con: #('15/06/2030').
+	self assert: ventana texto contiene: 'FUNCIONES DEL 15/06/2030'.
+	self assert: ventana texto contiene: 'Alfa'.
+	self deny: ventana texto contiene: 'Hamlet'.
+	self usarBien: #consultaFuncionesPorFecha con: #('17/06/2030').
+	self assert: ventana texto contiene: '(no hay funciones)'.
+	self assert: (self avisoDe: #consultaFuncionesPorFecha con: #('15-06-2030')) contiene: 'Fecha invalida'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaFuncionesPorObra">testConsultaFuncionesPorObra
+	self usarBien: #consultaFuncionesPorObra con: #('Hamlet').
+	self assert: ventana texto contiene: 'FUNCIONES DE "Hamlet"'.
+	self assert: ventana texto contiene: 'Sala Teatro'.
+	self usarBien: #consultaFuncionesPorObra con: #('Beta').
+	self assert: ventana texto contiene: '(no hay funciones)'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaReservasImpagas">testConsultaReservasImpagas
+	self usarBien: #consultaReservasImpagas con: #().
+	self assert: ventana texto contiene: 'Ana Lopez'.
+	self assert: ventana texto contiene: 'a pagar $ 1.600,00'.
+	self assert: ventana texto contiene: 'aun cancelable'.
+	"Con menos de 24 horas para la funcion ya no se puede anular"
+	self ponerReloj: (self dia: 4) hora: (self hora: 21).
+	self usarBien: #consultaReservasImpagas con: #().
+	self assert: ventana texto contiene: 'YA NO SE PUEDE ANULAR: DEBE PAGARLA'.
+	admin venderReserva: reserva id medioPago: PagoEfectivo new.
+	self usarBien: #consultaReservasImpagas con: #().
+	self assert: ventana texto contiene: '(no hay reservas pendientes)'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaMejoresCriticas">testConsultaMejoresCriticas
+	| texto |
+	admin registrarCriticaDe: carla id obra: beta id resena: 'Excelente' puntaje: 10.
+	self usarBien: #consultaMejoresCriticas con: #().
+	texto := ventana texto.
+	self assert: texto contiene: '(1 critica/s)'.
+	"Beta (10) va antes que Alfa (8)"
+	self assert: (texto indexOfSubCollection: 'Beta' startingAt: 1) &gt; 0.
+	self assert: (texto indexOfSubCollection: 'Beta' startingAt: 1) &lt; (texto indexOfSubCollection: 'Alfa' startingAt: 1).
+	"Si sale de cartel deja de figurar"
+	admin sacarDeCartel: beta id.
+	self usarBien: #consultaMejoresCriticas con: #().
+	self deny: ventana texto contiene: 'Beta'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaIngresos">testConsultaIngresos
+	admin venderReserva: reserva id medioPago: PagoEfectivo new.
+	admin venderFuncion: funcion id butacas: #('C1') medioPago: PagoEfectivo new socio: nil.
+	self usarBien: #consultaIngresos con: #('01/06/2030' '30/06/2030').
+	self assert: ventana texto contiene: 'Cantidad de ventas: 2'.
+	self assert: ventana texto contiene: '$ 1.600,00'.
+	self assert: ventana texto contiene: '$ 1.000,00'.
+	self assert: ventana texto contiene: '$ 2.600,00'.
+	"Valores sugeridos: los ultimos 30 dias"
+	self usarBien: #consultaIngresos con: #(#inicial #inicial).
+	self assert: ventana texto contiene: 'DEL 11/05/2030 AL 10/06/2030'.
+	self assert: (self avisoDe: #consultaIngresos con: #('30/06/2030' '01/06/2030')) contiene: 'La fecha final es anterior a la inicial'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaOcupacionYAgotadas">testConsultaOcupacionYAgotadas
+	"Alfa tiene 2 de 12 butacas ocupadas: 16,7 %"
+	self usarBien: #consultaOcupacion con: #().
+	self assert: ventana texto contiene: 'Alfa'.
+	self assert: ventana texto contiene: '16.7 %'.
+	self assert: ventana texto contiene: 'Hamlet'.
+	self usarBien: #consultaAgotadas con: #().
+	self assert: ventana texto contiene: '(no hay funciones)'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaPlano">testConsultaPlano
+	"Las butacas A1 y A2 (la reserva de Ana) salen marcadas; en el medio de la fila esta el pasillo"
+	self usarBien: #consultaPlano con: #('Alfa').
+	self assert: ventana texto contiene: 'PLANO DE LA FUNCION'.
+	self assert: ventana texto contiene: 'PANTALLA / ESCENARIO'.
+	self assert: ventana texto contiene: 'A   XX XX    03 04'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaProximasYRanking">testConsultaProximasYRanking
+	self usarBien: #consultaProximas con: #().
+	self assert: ventana texto contiene: 'libres: 10'.
+	admin venderFuncion: funcion id butacas: #('C1') medioPago: PagoEfectivo new socio: nil.
+	self usarBien: #consultaProximas con: #().
+	self assert: ventana texto contiene: 'libres: 9'.
+	self usarBien: #consultaRanking con: #().
+	self assert: ventana texto contiene: 'RANKING'.
+	self assert: ventana texto contiene: 'Alfa'.
+	self assert: ventana texto contiene: '1 entradas'</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaHistorialDeSocio">testConsultaHistorialDeSocio
+	admin venderReserva: reserva id medioPago: PagoEfectivo new.
+	self usarBien: #consultaHistorialSocio con: #('Lopez').
+	self assert: ventana texto contiene: 'HISTORIAL DEL SOCIO'.
+	self assert: ventana texto contiene: 'Reserva #1'.
+	self assert: ventana texto contiene: 'Venta #1'.
+	self assert: ventana texto contiene: 'Total gastado: $ 1.600,00'.
+	"Tambien se puede consultar el historial de un socio inactivo"
+	self usar: #consultaHistorialSocio con: #().
+	self assert: ventana opciones size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testConsultaParticipaciones">testConsultaParticipaciones
+	self usarBien: #modificarObra con: #('Beta' 'Director:' 'Paz').
+	self usarBien: #consultaParticipaciones con: #('Paz').
+	self assert: ventana texto contiene: 'PARTICIPA Dario Paz'.
+	self assert: ventana texto contiene: 'Elenco'.
+	self assert: ventana texto contiene: 'Director/a'</body>
+
+</methods>
+
 </st-source>

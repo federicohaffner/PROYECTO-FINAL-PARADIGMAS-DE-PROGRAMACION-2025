@@ -3540,7 +3540,7 @@
 <body package="CineTeatro" selector="bajaObra">bajaObra
 	self ejecutar: [| o aviso |
 		o := self elegirObra: 'Pelicula/obra a eliminar' entre: admin obras.
-		aviso := o criticas isEmpty ifTrue: [''] ifFalse: [' (tambien se eliminan sus ' , o criticas size printString , ' critica/s)'].
+		aviso := o criticas isEmpty ifTrue: [''] ifFalse: [' (tiene ' , o criticas size printString , ' critica/s, que tambien se eliminan)'].
 		(self confirmar: 'Eliminar "' , o titulo , '"' , aviso , '?') ifTrue: [
 			admin bajaObra: o id.
 			self mostrar: 'Se elimino "' , o titulo , '"']]</body>
