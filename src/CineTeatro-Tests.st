@@ -826,4 +826,593 @@
 
 </methods>
 
+<class>
+<name>PersonasTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>PersonasTest</class-id>
+<body>Pruebas de la gestion de personas, socios, criticos y criticas: altas, bajas y modificaciones con todas sus validaciones.</body>
+</comment>
+
+<methods>
+<class-id>PersonasTest</class-id> <category>personas</category>
+
+<body package="CineTeatro-Tests" selector="altaConDni:">altaConDni: unDni
+	^admin altaPersonaNombre: 'Persona' dni: unDni fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: ''</body>
+
+<body package="CineTeatro-Tests" selector="testAltaDePersonaGuardaLosDatos">testAltaDePersonaGuardaLosDatos
+	| p otra |
+	p := admin
+		altaPersonaNombre: '  Ana Perez '
+		dni: ' 30111222 '
+		fechaNacimiento: (Date newDay: 15 monthNumber: 8 year: 1990)
+		sexo: 'f'
+		domicilio: 'Calle 1'
+		email: 'ana@mail.com'
+		celular: '3442-1234'.
+	self assert: p id equals: 1.
+	"El nombre y el DNI se guardan sin espacios de mas, y el sexo en mayuscula"
+	self assert: p nombre equals: 'Ana Perez'.
+	self assert: p dni equals: '30111222'.
+	self assert: p sexo equals: 'F'.
+	self assert: p fechaNacimiento equals: (Date newDay: 15 monthNumber: 8 year: 1990).
+	self assert: p domicilio equals: 'Calle 1'.
+	self assert: p email equals: 'ana@mail.com'.
+	self assert: p celular equals: '3442-1234'.
+	self assert: (admin personaId: 1) == p.
+	self assert: (admin personaConDni: '30111222') == p.
+	otra := self persona: 'Otra'.
+	self assert: otra id equals: 2.
+	self assert: admin personas size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testAltaDePersonaValidaNombreDniYFecha">testAltaDePersonaValidaNombreDniYFecha
+	self altaConDni: '30111222'.
+	self assert: (self mensajeDeError: [admin altaPersonaNombre: '   ' dni: '1' fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: '']) contiene: 'nombre es obligatorio'.
+	#('30.111.222' 'abc' '' '30111222a') do: [:dni | self assert: (self mensajeDeError: [self altaConDni: dni]) contiene: 'DNI debe ser numerico'].
+	self assert: (self mensajeDeError: [self altaConDni: '30111222']) contiene: 'Ya existe una persona con DNI'.
+	self deberiaFallar: [self altaConDni: ' 30111222 '].
+	self assert: (self mensajeDeError: [admin altaPersonaNombre: 'X' dni: '2' fechaNacimiento: (self dia: 1) sexo: 'F' domicilio: '' email: '' celular: '']) contiene: 'no puede ser futura'.
+	"Ninguno de los intentos fallidos agrego nada"
+	self assert: admin personas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testLaFechaDeNacimientoPuedeSerHoyOFaltar">testLaFechaDeNacimientoPuedeSerHoyOFaltar
+	| conFecha sinFecha |
+	conFecha := admin altaPersonaNombre: 'Bebe' dni: '1' fechaNacimiento: self hoy sexo: 'M' domicilio: '' email: '' celular: ''.
+	sinFecha := self altaConDni: '2'.
+	self assert: (conFecha edadAl: self hoy) equals: 0.
+	self assert: (sinFecha edadAl: self hoy) isNil</body>
+
+<body package="CineTeatro-Tests" selector="testEdadSegunSiYaCumplioAnios">testEdadSegunSiYaCumplioAnios
+	"La persona de apoyo nacio el 15/08/1990"
+	| p |
+	p := self persona: 'Ana'.
+	self assert: (p edadAl: (Date newDay: 10 monthNumber: 6 year: 2030)) equals: 39.
+	self assert: (p edadAl: (Date newDay: 14 monthNumber: 8 year: 2030)) equals: 39.
+	self assert: (p edadAl: (Date newDay: 15 monthNumber: 8 year: 2030)) equals: 40</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaCambiaTodosLosDatos">testModificarPersonaCambiaTodosLosDatos
+	| p |
+	p := self persona: 'Ana'.
+	admin
+		modificarPersona: p id
+		nombre: ' Ana Maria '
+		dni: '99000111'
+		fechaNacimiento: (Date newDay: 1 monthNumber: 2 year: 1985)
+		sexo: 'x'
+		domicilio: 'Otra calle'
+		email: 'nuevo@mail.com'
+		celular: '555'.
+	self assert: p id equals: 1.
+	self assert: p nombre equals: 'Ana Maria'.
+	self assert: p dni equals: '99000111'.
+	self assert: p fechaNacimiento equals: (Date newDay: 1 monthNumber: 2 year: 1985).
+	self assert: p sexo equals: 'X'.
+	self assert: p domicilio equals: 'Otra calle'.
+	self assert: p email equals: 'nuevo@mail.com'.
+	self assert: p celular equals: '555'.
+	self assert: (admin personaConDni: '99000111') == p</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaNoPuedeRepetirElDniDeOtra">testModificarPersonaNoPuedeRepetirElDniDeOtra
+	| ana beto |
+	ana := self persona: 'Ana'.
+	beto := self persona: 'Beto'.
+	self assert: (self mensajeDeError: [admin modificarPersona: beto id nombre: 'Beto' dni: ana dni fechaNacimiento: nil sexo: 'M' domicilio: '' email: '' celular: '']) contiene: 'Ya existe una persona con DNI'.
+	"Pero puede conservar el suyo"
+	admin modificarPersona: beto id nombre: 'Beto Gomez' dni: beto dni fechaNacimiento: nil sexo: 'M' domicilio: '' email: '' celular: ''.
+	self assert: beto nombre equals: 'Beto Gomez'</body>
+
+<body package="CineTeatro-Tests" selector="testModificarPersonaValidaIgualQueElAlta">testModificarPersonaValidaIgualQueElAlta
+	| p dni |
+	p := self persona: 'Ana'.
+	dni := p dni.
+	self deberiaFallar: [admin modificarPersona: p id nombre: '' dni: dni fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: ''].
+	self deberiaFallar: [admin modificarPersona: p id nombre: 'Ana' dni: '12x' fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: ''].
+	self deberiaFallar: [admin modificarPersona: p id nombre: 'Ana' dni: dni fechaNacimiento: (self dia: 1) sexo: 'F' domicilio: '' email: '' celular: ''].
+	self deberiaFallar: [admin modificarPersona: 99 nombre: 'Ana' dni: '5' fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: ''].
+	"Si la validacion falla no se cambia nada"
+	self assert: p nombre equals: 'Ana'.
+	self assert: p dni equals: dni.
+	self assert: p domicilio equals: 'Calle 1'</body>
+
+<body package="CineTeatro-Tests" selector="testBajaDePersonaSinRoles">testBajaDePersonaSinRoles
+	| p |
+	p := self persona: 'Ana'.
+	admin bajaPersona: p id.
+	self assert: admin personas isEmpty.
+	self deberiaFallar: [admin bajaPersona: p id].
+	self deberiaFallar: [admin personaId: p id]</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeEliminaUnaPersonaConRoles">testNoSeEliminaUnaPersonaConRoles
+	| socio critico director actor peli |
+	socio := self socio: 'Socia'.
+	critico := self critico: 'usuario1'.
+	director := self persona: 'Directora'.
+	actor := self persona: 'Actor'.
+	peli := admin altaPeliculaTitulo: 'Peli' descripcion: '' duracion: 100 clasificacion: 'ATP' director: director id.
+	admin agregarAlElenco: actor id obra: peli id.
+	self assert: (self mensajeDeError: [admin bajaPersona: socio idPersona]) contiene: 'socio'.
+	self assert: (self mensajeDeError: [admin bajaPersona: critico idPersona]) contiene: 'critico'.
+	self assert: (self mensajeDeError: [admin bajaPersona: director id]) contiene: 'participa'.
+	self assert: (self mensajeDeError: [admin bajaPersona: actor id]) contiene: 'participa'.
+	"Un socio dado de baja sigue teniendo historial: tampoco se elimina"
+	admin darDeBajaSocio: socio id.
+	self deberiaFallar: [admin bajaPersona: socio idPersona].
+	self assert: admin personas size equals: 4</body>
+
+</methods>
+
+<methods>
+<class-id>PersonasTest</class-id> <category>socios</category>
+
+<body package="CineTeatro-Tests" selector="testAltaDeSocio">testAltaDeSocio
+	| p socio |
+	p := self persona: 'Ana'.
+	socio := admin altaSocioPersona: p id.
+	self assert: socio id equals: 1.
+	self assert: socio idPersona equals: p id.
+	self assert: socio fechaAlta equals: self hoy.
+	self assert: socio estaActivo.
+	self assert: socio estado equals: #activo.
+	self assert: (admin socioDePersona: p id) == socio.
+	self assert: (admin nombreDeSocio: socio id) equals: 'Ana'.
+	self deberiaFallar: [admin altaSocioPersona: 99]</body>
+
+<body package="CineTeatro-Tests" selector="testUnaPersonaEsSocioUnaSolaVez">testUnaPersonaEsSocioUnaSolaVez
+	| socio |
+	socio := self socio: 'Ana'.
+	self assert: (self mensajeDeError: [admin altaSocioPersona: socio idPersona]) contiene: 'ya es socio activo'.
+	admin darDeBajaSocio: socio id.
+	"Si esta inactivo no se crea otro socio: se lo reactiva"
+	self assert: (self mensajeDeError: [admin altaSocioPersona: socio idPersona]) contiene: 'Reactivar'.
+	self assert: admin socios size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testBajaYReactivacionDeSocio">testBajaYReactivacionDeSocio
+	| socio otro |
+	socio := self socio: 'Ana'.
+	otro := self socio: 'Beto'.
+	admin darDeBajaSocio: socio id.
+	self deny: socio estaActivo.
+	self assert: socio estado equals: #inactivo.
+	self assert: admin sociosActivos asArray equals: (Array with: otro).
+	self assert: (self mensajeDeError: [admin darDeBajaSocio: socio id]) contiene: 'ya esta inactivo'.
+	admin reactivarSocio: socio id.
+	self assert: socio estaActivo.
+	self assert: (self mensajeDeError: [admin reactivarSocio: socio id]) contiene: 'ya esta activo'.
+	self deberiaFallar: [admin darDeBajaSocio: 99].
+	self deberiaFallar: [admin reactivarSocio: 99].
+	"El socio dado de baja no se borra de la lista"
+	self assert: admin socios size equals: 2</body>
+
+</methods>
+
+<methods>
+<class-id>PersonasTest</class-id> <category>criticos y criticas</category>
+
+<body package="CineTeatro-Tests" selector="testAltaDeCritico">testAltaDeCritico
+	| p critico |
+	p := self persona: 'Ana'.
+	critico := admin altaCriticoPersona: p id usuario: '  ana_cine '.
+	self assert: critico id equals: 1.
+	self assert: critico idPersona equals: p id.
+	self assert: critico nombreUsuario equals: 'ana_cine'.
+	self assert: critico fechaAlta equals: self hoy.
+	self assert: (admin criticoId: 1) == critico</body>
+
+<body package="CineTeatro-Tests" selector="testAltaDeCriticoValidaciones">testAltaDeCriticoValidaciones
+	| ana beto |
+	ana := self persona: 'Ana'.
+	beto := self persona: 'Beto'.
+	admin altaCriticoPersona: ana id usuario: 'ana_cine'.
+	self deberiaFallar: [admin altaCriticoPersona: 99 usuario: 'otro'].
+	self assert: (self mensajeDeError: [admin altaCriticoPersona: beto id usuario: '  ']) contiene: 'obligatorio'.
+	self assert: (self mensajeDeError: [admin altaCriticoPersona: ana id usuario: 'otro']) contiene: 'ya esta registrada como critico'.
+	self assert: (self mensajeDeError: [admin altaCriticoPersona: beto id usuario: 'ana_cine']) contiene: 'ya existe'.
+	self assert: admin criticos size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testSoloLasPeliculasRecibenCriticas">testSoloLasPeliculasRecibenCriticas
+	"Polimorfismo: Pelicula responde admiteCriticas con true y ObraTeatro con false"
+	| critico peli obra critica |
+	critico := self critico: 'ana_cine'.
+	peli := self pelicula: 'Peli'.
+	obra := self obraDeTeatro: 'Obra'.
+	self assert: peli admiteCriticas.
+	self deny: obra admiteCriticas.
+	critica := admin registrarCriticaDe: critico id obra: peli id resena: 'Muy buena' puntaje: 9.
+	self assert: critica idCritico equals: critico id.
+	self assert: critica puntaje equals: 9.
+	self assert: critica resena equals: 'Muy buena'.
+	self assert: critica fecha equals: self hoy.
+	self assert: peli criticas size equals: 1.
+	self assert: (self mensajeDeError: [admin registrarCriticaDe: critico id obra: obra id resena: 'x' puntaje: 9]) contiene: 'no admiten criticas'.
+	self assert: obra criticas isEmpty.
+	self deberiaFallar: [obra agregarCritica: critica]</body>
+
+<body package="CineTeatro-Tests" selector="testElPuntajeVaDe1A10">testElPuntajeVaDe1A10
+	| critico otro peli |
+	critico := self critico: 'ana_cine'.
+	otro := self critico: 'beto_cine'.
+	peli := self pelicula: 'Peli'.
+	self assert: (self mensajeDeError: [admin registrarCriticaDe: critico id obra: peli id resena: 'x' puntaje: 0]) contiene: 'entre 1 y 10'.
+	self deberiaFallar: [admin registrarCriticaDe: critico id obra: peli id resena: 'x' puntaje: 11].
+	admin registrarCriticaDe: critico id obra: peli id resena: 'x' puntaje: 1.
+	admin registrarCriticaDe: otro id obra: peli id resena: 'x' puntaje: 10.
+	self assert: peli criticas size equals: 2.
+	self deberiaFallar: [admin registrarCriticaDe: 99 obra: peli id resena: 'x' puntaje: 5].
+	self deberiaFallar: [admin registrarCriticaDe: critico id obra: 99 resena: 'x' puntaje: 5]</body>
+
+<body package="CineTeatro-Tests" selector="testUnCriticoTieneUnaSolaCriticaPorPelicula">testUnCriticoTieneUnaSolaCriticaPorPelicula
+	"Si vuelve a criticar la misma pelicula, la critica nueva reemplaza a la anterior"
+	| critico peli |
+	critico := self critico: 'ana_cine'.
+	peli := self pelicula: 'Peli'.
+	admin registrarCriticaDe: critico id obra: peli id resena: 'Primera' puntaje: 4.
+	admin registrarCriticaDe: critico id obra: peli id resena: 'Segunda' puntaje: 8.
+	self assert: peli criticas size equals: 1.
+	self assert: peli criticas first resena equals: 'Segunda'.
+	self assert: peli promedioCriticas equals: 8</body>
+
+<body package="CineTeatro-Tests" selector="testPromedioDeCriticas">testPromedioDeCriticas
+	| peli obra |
+	peli := self pelicula: 'Peli'.
+	obra := self obraDeTeatro: 'Obra'.
+	self assert: peli promedioCriticas equals: 0.
+	self assert: obra promedioCriticas equals: 0.
+	admin registrarCriticaDe: (self critico: 'c1') id obra: peli id resena: 'x' puntaje: 9.
+	admin registrarCriticaDe: (self critico: 'c2') id obra: peli id resena: 'x' puntaje: 8.
+	admin registrarCriticaDe: (self critico: 'c3') id obra: peli id resena: 'x' puntaje: 8.
+	self assert: peli promedioCriticas equals: 25 / 3.
+	self assert: (UtilCine textoPromedio: peli promedioCriticas) equals: '8.33'</body>
+
+<body package="CineTeatro-Tests" selector="testBajaDeCritica">testBajaDeCritica
+	| c1 c2 peli obra quitada |
+	c1 := self critico: 'c1'.
+	c2 := self critico: 'c2'.
+	peli := self pelicula: 'Peli'.
+	obra := self obraDeTeatro: 'Obra'.
+	admin registrarCriticaDe: c1 id obra: peli id resena: 'Mala' puntaje: 2.
+	admin registrarCriticaDe: c2 id obra: peli id resena: 'Buena' puntaje: 8.
+	self assert: (peli tieneCriticaDe: c1 id).
+	quitada := admin bajaCriticaDe: c1 id obra: peli id.
+	self assert: quitada resena equals: 'Mala'.
+	self deny: (peli tieneCriticaDe: c1 id).
+	self assert: peli criticas size equals: 1.
+	self assert: peli promedioCriticas equals: 8.
+	"No se puede eliminar una critica que no existe"
+	self assert: (self mensajeDeError: [admin bajaCriticaDe: c1 id obra: peli id]) contiene: 'no tiene una critica'.
+	self deberiaFallar: [admin bajaCriticaDe: c2 id obra: obra id].
+	self deberiaFallar: [admin bajaCriticaDe: 99 obra: peli id].
+	self deberiaFallar: [admin bajaCriticaDe: c2 id obra: 99].
+	self deberiaFallar: [obra quitarCriticaDe: c2 id]</body>
+
+<body package="CineTeatro-Tests" selector="testBajaDeCritico">testBajaDeCritico
+	"Un critico con criticas no se elimina; hay que eliminar antes sus criticas"
+	| critico peli1 peli2 |
+	critico := self critico: 'ana_cine'.
+	peli1 := self pelicula: 'Peli 1'.
+	peli2 := self pelicula: 'Peli 2'.
+	admin registrarCriticaDe: critico id obra: peli1 id resena: 'x' puntaje: 5.
+	admin registrarCriticaDe: critico id obra: peli2 id resena: 'x' puntaje: 6.
+	self assert: (admin obrasCriticadasPor: critico id) asArray equals: (Array with: peli1 with: peli2).
+	self assert: (self mensajeDeError: [admin bajaCritico: critico id]) contiene: 'tiene 2 critica'.
+	admin bajaCriticaDe: critico id obra: peli1 id.
+	admin bajaCriticaDe: critico id obra: peli2 id.
+	admin bajaCritico: critico id.
+	self assert: admin criticos isEmpty.
+	self deberiaFallar: [admin bajaCritico: critico id].
+	"La persona sigue existiendo, y ahora si se puede eliminar"
+	self assert: admin personas size equals: 1.
+	admin bajaPersona: critico idPersona.
+	self assert: admin personas isEmpty</body>
+
+</methods>
+
+<class>
+<name>ObrasSalasTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>ObrasSalasTest</class-id>
+<body>Pruebas de la gestion de peliculas, obras de teatro y salas: altas, modificaciones, bajas, elenco, cartel y butacas.</body>
+</comment>
+
+<methods>
+<class-id>ObrasSalasTest</class-id> <category>peliculas y obras</category>
+
+<body package="CineTeatro-Tests" selector="testAltaDePeliculaYDeObraDeTeatro">testAltaDePeliculaYDeObraDeTeatro
+	"Las dos se guardan en la misma lista (obras) y comparten la numeracion"
+	| director peli obra |
+	director := self persona: 'Directora'.
+	peli := admin altaPeliculaTitulo: '  El faro ' descripcion: 'Drama' duracion: 105 clasificacion: '+13' director: director id.
+	obra := admin altaObraTeatroTitulo: 'Hamlet' descripcion: 'Tragedia' duracion: 150 clasificacion: '+13' director: nil.
+	self assert: peli id equals: 1.
+	self assert: obra id equals: 2.
+	self assert: peli titulo equals: 'El faro'.
+	self assert: peli descripcion equals: 'Drama'.
+	self assert: peli duracion equals: 105.
+	self assert: peli clasificacion equals: '+13'.
+	self assert: peli director equals: director id.
+	self assert: obra director isNil.
+	self assert: peli elenco isEmpty.
+	self assert: peli estaEnCartel.
+	"Polimorfismo: cada subclase de ObraArtistica responde distinto"
+	self assert: peli esPelicula.
+	self deny: obra esPelicula.
+	self assert: peli tipo equals: #pelicula.
+	self assert: obra tipo equals: #obra.
+	self assert: peli tipoTexto equals: 'Pelicula'.
+	self assert: obra tipoTexto equals: 'Obra de teatro'.
+	self assert: admin obras asArray equals: (Array with: peli with: obra)</body>
+
+<body package="CineTeatro-Tests" selector="testAltaDeObraValidaciones">testAltaDeObraValidaciones
+	self assert: (self mensajeDeError: [admin altaPeliculaTitulo: '  ' descripcion: '' duracion: 100 clasificacion: 'ATP' director: nil]) contiene: 'titulo es obligatorio'.
+	self assert: (self mensajeDeError: [admin altaPeliculaTitulo: 'X' descripcion: '' duracion: 0 clasificacion: 'ATP' director: nil]) contiene: 'duracion debe ser mayor'.
+	self deberiaFallar: [admin altaObraTeatroTitulo: 'X' descripcion: '' duracion: 100 clasificacion: 'ATP' director: 99].
+	self assert: admin obras isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testModificarObra">testModificarObra
+	| director peli |
+	director := self persona: 'Directora'.
+	peli := self pelicula: 'Peli'.
+	admin modificarObra: peli id titulo: ' Peli corregida ' descripcion: 'Nueva' duracion: 120 clasificacion: '+16' director: director id.
+	self assert: peli titulo equals: 'Peli corregida'.
+	self assert: peli descripcion equals: 'Nueva'.
+	self assert: peli duracion equals: 120.
+	self assert: peli clasificacion equals: '+16'.
+	self assert: peli director equals: director id.
+	"Sigue siendo una pelicula en cartel, con el mismo id"
+	self assert: peli id equals: 1.
+	self assert: peli esPelicula.
+	self assert: peli estaEnCartel.
+	self deberiaFallar: [admin modificarObra: peli id titulo: '' descripcion: '' duracion: 120 clasificacion: 'ATP' director: nil].
+	self deberiaFallar: [admin modificarObra: peli id titulo: 'X' descripcion: '' duracion: 0 clasificacion: 'ATP' director: nil].
+	self deberiaFallar: [admin modificarObra: peli id titulo: 'X' descripcion: '' duracion: 120 clasificacion: 'ATP' director: 99].
+	self deberiaFallar: [admin modificarObra: 99 titulo: 'X' descripcion: '' duracion: 120 clasificacion: 'ATP' director: nil].
+	self assert: peli titulo equals: 'Peli corregida'</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeCambiaLaDuracionConFuncionesPorEmpezar">testNoSeCambiaLaDuracionConFuncionesPorEmpezar
+	"Cada funcion ya calculo su horario de fin con la duracion que tenia la obra"
+	| peli f |
+	peli := self pelicula: 'Peli'.
+	f := self funcionDe: peli en: self salaCine dia: 5 hora: 20.
+	self assert: (self mensajeDeError: [admin modificarObra: peli id titulo: 'Peli' descripcion: '' duracion: 150 clasificacion: 'ATP' director: nil]) contiene: 'No se puede cambiar la duracion'.
+	"Los demas datos si se pueden cambiar"
+	admin modificarObra: peli id titulo: 'Otro titulo' descripcion: '' duracion: 100 clasificacion: 'ATP' director: nil.
+	self assert: peli titulo equals: 'Otro titulo'.
+	"Cuando la funcion ya empezo, se puede; la funcion pasada conserva su duracion"
+	self ponerReloj: (self dia: 6) hora: (self hora: 10).
+	admin modificarObra: peli id titulo: 'Otro titulo' descripcion: '' duracion: 150 clasificacion: 'ATP' director: nil.
+	self assert: peli duracion equals: 150.
+	self assert: f duracion equals: 100</body>
+
+<body package="CineTeatro-Tests" selector="testBajaDeObra">testBajaDeObra
+	| critico conFuncion sinFuncion |
+	critico := self critico: 'ana_cine'.
+	conFuncion := self pelicula: 'Con funcion'.
+	sinFuncion := self pelicula: 'Sin funcion'.
+	admin registrarCriticaDe: critico id obra: sinFuncion id resena: 'x' puntaje: 7.
+	self funcionDe: conFuncion en: self salaCine dia: 5 hora: 20.
+	self assert: (self mensajeDeError: [admin bajaObra: conFuncion id]) contiene: 'tiene 1 funcion'.
+	"Aunque la funcion ya haya pasado"
+	self ponerReloj: (self dia: 9) hora: (self hora: 10).
+	self deberiaFallar: [admin bajaObra: conFuncion id].
+	admin bajaObra: sinFuncion id.
+	self assert: admin obras asArray equals: (Array with: conFuncion).
+	"Las criticas de la pelicula se fueron con ella"
+	self assert: (admin obrasCriticadasPor: critico id) isEmpty.
+	self deberiaFallar: [admin bajaObra: sinFuncion id]</body>
+
+<body package="CineTeatro-Tests" selector="testElenco">testElenco
+	| directora actor actriz peli |
+	directora := self persona: 'Directora'.
+	actor := self persona: 'Actor'.
+	actriz := self persona: 'Actriz'.
+	peli := admin altaPeliculaTitulo: 'Peli' descripcion: '' duracion: 100 clasificacion: 'ATP' director: directora id.
+	admin agregarAlElenco: actor id obra: peli id.
+	admin agregarAlElenco: actriz id obra: peli id.
+	self assert: peli elenco asArray equals: (Array with: actor id with: actriz id).
+	self assert: (self mensajeDeError: [admin agregarAlElenco: actor id obra: peli id]) contiene: 'ya forma parte'.
+	self deberiaFallar: [admin agregarAlElenco: 99 obra: peli id].
+	self deberiaFallar: [admin agregarAlElenco: actor id obra: 99].
+	"participa: cuenta al director y al elenco"
+	self assert: (peli participa: directora id).
+	self assert: (peli participa: actor id).
+	self assert: (admin obrasDePersona: actriz id) asArray equals: (Array with: peli).
+	admin quitarDelElenco: actor id obra: peli id.
+	self assert: peli elenco asArray equals: (Array with: actriz id).
+	self deny: (peli participa: actor id).
+	self assert: (self mensajeDeError: [admin quitarDelElenco: actor id obra: peli id]) contiene: 'no forma parte'.
+	self deberiaFallar: [admin quitarDelElenco: actriz id obra: 99].
+	"Fuera del elenco, el actor ya se puede eliminar como persona"
+	admin bajaPersona: actor id.
+	self assert: admin personas size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testPonerYSacarDeCartel">testPonerYSacarDeCartel
+	| peli obra |
+	peli := self pelicula: 'Peli'.
+	obra := self obraDeTeatro: 'Obra'.
+	admin sacarDeCartel: peli id.
+	self deny: peli estaEnCartel.
+	self assert: peli estado equals: #fueraDeCartel.
+	self assert: peli textoEstado equals: 'Fuera de cartel'.
+	self assert: admin obrasEnCartel asArray equals: (Array with: obra).
+	admin ponerEnCartel: peli id.
+	self assert: peli estaEnCartel.
+	self assert: peli textoEstado equals: 'En cartel'.
+	self assert: admin obrasEnCartel size equals: 2.
+	self deberiaFallar: [admin sacarDeCartel: 99]</body>
+
+</methods>
+
+<methods>
+<class-id>ObrasSalasTest</class-id> <category>salas</category>
+
+<body package="CineTeatro-Tests" selector="testAltaDeSalaGeneraLasButacas">testAltaDeSalaGeneraLasButacas
+	"3 filas de 4 butacas: A1..A4, B1..B4, C1..C4"
+	| sala |
+	sala := self salaCine.
+	self assert: sala id equals: 1.
+	self assert: sala nombre equals: 'Sala Cine'.
+	self assert: sala capacidad equals: 12.
+	self assert: sala cantidadFilas equals: 3.
+	self assert: sala butacasPorFila equals: 4.
+	self assert: sala butacas first codigo equals: 'A1'.
+	self assert: sala butacas last codigo equals: 'C4'.
+	self assert: (sala butacaDeCodigo: 'b3') codigo equals: 'B3'.
+	self assert: (sala butacaDeCodigo: 'D1') isNil.
+	self assert: (sala butacaDeCodigo: 'A5') isNil</body>
+
+<body package="CineTeatro-Tests" selector="testLasButacasTienenPosicionEnElPlano">testLasButacasTienenPosicionEnElPlano
+	"posicionY es la fila; posicionX salta una columna en la mitad para dejar el pasillo"
+	| sala |
+	sala := self salaCine.
+	self assert: (sala butacaDeCodigo: 'A1') posicionX equals: 1.
+	self assert: (sala butacaDeCodigo: 'A2') posicionX equals: 2.
+	self assert: (sala butacaDeCodigo: 'A3') posicionX equals: 4.
+	self assert: (sala butacaDeCodigo: 'A4') posicionX equals: 5.
+	self assert: (sala butacaDeCodigo: 'A4') posicionY equals: 1.
+	self assert: (sala butacaDeCodigo: 'C1') posicionY equals: 3.
+	"Dos butacas son iguales si tienen la misma fila y numero"
+	self assert: (Butaca fila: 'B' numero: 2 x: 0 y: 0) equals: (sala butacaDeCodigo: 'B2').
+	self deny: (sala butacaDeCodigo: 'B2') = (sala butacaDeCodigo: 'B3')</body>
+
+<body package="CineTeatro-Tests" selector="testPlanoDeLaSala">testPlanoDeLaSala
+	| sala plano |
+	sala := self salaCine.
+	plano := sala planoMarcando: #('A1' 'C4').
+	self assert: plano contiene: 'PANTALLA / ESCENARIO'.
+	self assert: plano contiene: ' A   XX 02    03 04'.
+	self assert: plano contiene: ' B   01 02    03 04'.
+	self assert: plano contiene: ' C   01 02    03 XX'.
+	self deny: (sala planoMarcando: #()) contiene: 'XX '</body>
+
+<body package="CineTeatro-Tests" selector="testAltaDeSalaValidaciones">testAltaDeSalaValidaciones
+	self salaCine.
+	self assert: (self mensajeDeError: [admin altaSalaNombre: ' ' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: false]) contiene: 'nombre de la sala es obligatorio'.
+	self assert: (self mensajeDeError: [admin altaSalaNombre: ' Sala Cine ' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: false]) contiene: 'Ya existe una sala'.
+	self assert: (self mensajeDeError: [admin altaSalaNombre: 'X' filas: 0 butacasPorFila: 2 permitePeliculas: true permiteTeatro: false]) contiene: 'filas'.
+	self deberiaFallar: [admin altaSalaNombre: 'X' filas: 27 butacasPorFila: 2 permitePeliculas: true permiteTeatro: false].
+	self assert: (self mensajeDeError: [admin altaSalaNombre: 'X' filas: 2 butacasPorFila: 0 permitePeliculas: true permiteTeatro: false]) contiene: 'butacas por fila'.
+	self deberiaFallar: [admin altaSalaNombre: 'X' filas: 2 butacasPorFila: 41 permitePeliculas: true permiteTeatro: false].
+	self assert: (self mensajeDeError: [admin altaSalaNombre: 'X' filas: 2 butacasPorFila: 2 permitePeliculas: false permiteTeatro: false]) contiene: 'peliculas, teatro o ambos'.
+	self assert: admin salas size equals: 1.
+	"Los limites son validos: 26 filas (A..Z) de 40 butacas"
+	self assert: (admin altaSalaNombre: 'Enorme' filas: 26 butacasPorFila: 40 permitePeliculas: true permiteTeatro: true) capacidad equals: 1040</body>
+
+<body package="CineTeatro-Tests" selector="testTiposDeObraQueAdmiteLaSala">testTiposDeObraQueAdmiteLaSala
+	| mixta |
+	mixta := admin altaSalaNombre: 'Mixta' filas: 1 butacasPorFila: 1 permitePeliculas: true permiteTeatro: true.
+	self assert: self salaCine tiposPermitidosTexto equals: 'Solo peliculas'.
+	self assert: self salaTeatro tiposPermitidosTexto equals: 'Solo teatro'.
+	self assert: mixta tiposPermitidosTexto equals: 'Peliculas y teatro'</body>
+
+<body package="CineTeatro-Tests" selector="testModificarSalaSinFunciones">testModificarSalaSinFunciones
+	| sala |
+	sala := self salaCine.
+	admin modificarSala: sala id nombre: ' Sala Grande ' filas: 5 butacasPorFila: 6 permitePeliculas: true permiteTeatro: true.
+	self assert: sala id equals: 1.
+	self assert: sala nombre equals: 'Sala Grande'.
+	self assert: sala capacidad equals: 30.
+	self assert: sala cantidadFilas equals: 5.
+	self assert: sala butacasPorFila equals: 6.
+	self assert: sala butacas last codigo equals: 'E6'.
+	self assert: sala tiposPermitidosTexto equals: 'Peliculas y teatro'</body>
+
+<body package="CineTeatro-Tests" selector="testModificarSalaValidaciones">testModificarSalaValidaciones
+	| cine teatro |
+	cine := self salaCine.
+	teatro := self salaTeatro.
+	self assert: (self mensajeDeError: [admin modificarSala: teatro id nombre: 'Sala Cine' filas: 2 butacasPorFila: 5 permitePeliculas: false permiteTeatro: true]) contiene: 'Ya existe una sala'.
+	self deberiaFallar: [admin modificarSala: teatro id nombre: '' filas: 2 butacasPorFila: 5 permitePeliculas: false permiteTeatro: true].
+	self deberiaFallar: [admin modificarSala: teatro id nombre: 'T' filas: 30 butacasPorFila: 5 permitePeliculas: false permiteTeatro: true].
+	self deberiaFallar: [admin modificarSala: teatro id nombre: 'T' filas: 2 butacasPorFila: 5 permitePeliculas: false permiteTeatro: false].
+	self deberiaFallar: [admin modificarSala: 99 nombre: 'T' filas: 2 butacasPorFila: 5 permitePeliculas: false permiteTeatro: true].
+	"Puede conservar su propio nombre"
+	admin modificarSala: teatro id nombre: 'Sala Teatro' filas: 2 butacasPorFila: 5 permitePeliculas: true permiteTeatro: true.
+	self assert: teatro permitePeliculas.
+	self assert: cine nombre equals: 'Sala Cine'</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeCambianLasButacasDeUnaSalaConFunciones">testNoSeCambianLasButacasDeUnaSalaConFunciones
+	"Hay reservas y ventas hechas con esa distribucion de butacas"
+	| sala |
+	sala := self salaCine.
+	self funcionDe: (self pelicula: 'Peli') en: sala dia: 5 hora: 20.
+	self assert: (self mensajeDeError: [admin modificarSala: sala id nombre: 'Sala Cine' filas: 4 butacasPorFila: 4 permitePeliculas: true permiteTeatro: false]) contiene: 'No se pueden cambiar las butacas'.
+	self assert: sala capacidad equals: 12.
+	"El nombre si se puede cambiar"
+	admin modificarSala: sala id nombre: 'Sala Uno' filas: 3 butacasPorFila: 4 permitePeliculas: true permiteTeatro: false.
+	self assert: sala nombre equals: 'Sala Uno'</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeQuitaUnTipoDeObraConFuncionesProgramadas">testNoSeQuitaUnTipoDeObraConFuncionesProgramadas
+	| mixta |
+	mixta := admin altaSalaNombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: true.
+	self funcionDe: (self pelicula: 'Peli') en: mixta dia: 5 hora: 20.
+	self assert: (self mensajeDeError: [admin modificarSala: mixta id nombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: false permiteTeatro: true]) contiene: 'No se puede quitar ese tipo'.
+	self assert: mixta permitePeliculas.
+	"Quitar teatro si se puede: no hay obras de teatro programadas"
+	admin modificarSala: mixta id nombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: false.
+	self deny: mixta permiteTeatro.
+	"Cuando la funcion ya paso, la sala puede dejar de admitir peliculas"
+	self ponerReloj: (self dia: 6) hora: (self hora: 10).
+	admin modificarSala: mixta id nombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: false permiteTeatro: true.
+	self deny: mixta permitePeliculas</body>
+
+<body package="CineTeatro-Tests" selector="testBajaDeSala">testBajaDeSala
+	| conFuncion sinFuncion |
+	conFuncion := self salaCine.
+	sinFuncion := self salaTeatro.
+	self funcionDe: (self pelicula: 'Peli') en: conFuncion dia: 5 hora: 20.
+	self assert: (self mensajeDeError: [admin bajaSala: conFuncion id]) contiene: 'tiene 1 funcion'.
+	admin bajaSala: sinFuncion id.
+	self assert: admin salas asArray equals: (Array with: conFuncion).
+	self deberiaFallar: [admin bajaSala: sinFuncion id].
+	"Si se elimina la funcion, la sala ya se puede eliminar"
+	admin cancelarFuncion: 1.
+	admin bajaSala: conFuncion id.
+	self assert: admin salas isEmpty</body>
+
+</methods>
+
 </st-source>

@@ -1016,6 +1016,13 @@
 <body package="CineTeatro" selector="agregarCritica:">agregarCritica: unaCritica
 	^ErrorCine new raiseSignal: 'Solo se pueden registrar criticas de peliculas, no de obras de teatro'</body>
 
+<body package="CineTeatro" selector="tieneCriticaDe:">tieneCriticaDe: unIdCritico
+	"Sirve para peliculas y obras: las obras de teatro responden criticas con una lista vacia"
+	^self criticas anySatisfy: [:c | c idCritico = unIdCritico]</body>
+
+<body package="CineTeatro" selector="quitarCriticaDe:">quitarCriticaDe: unIdCritico
+	^ErrorCine new raiseSignal: 'Las obras de teatro no tienen criticas'</body>
+
 <body package="CineTeatro" selector="promedioCriticas">promedioCriticas
 	| cs |
 	cs := self criticas.
@@ -1030,6 +1037,10 @@
 <body package="CineTeatro" selector="agregarAlElenco:">agregarAlElenco: unIdPersona
 	(elenco includes: unIdPersona) ifTrue: [^ErrorCine new raiseSignal: 'La persona ya forma parte del elenco'].
 	elenco add: unIdPersona</body>
+
+<body package="CineTeatro" selector="quitarDelElenco:">quitarDelElenco: unIdPersona
+	(elenco includes: unIdPersona) ifFalse: [^ErrorCine new raiseSignal: 'La persona no forma parte del elenco'].
+	elenco remove: unIdPersona</body>
 
 <body package="CineTeatro" selector="participa:">participa: unIdPersona
 	^director = unIdPersona or: [elenco includes: unIdPersona]</body>
@@ -1080,6 +1091,14 @@
 	anterior := criticas detect: [:c | c idCritico = unaCritica idCritico] ifNone: [nil].
 	anterior isNil ifFalse: [criticas remove: anterior].
 	criticas add: unaCritica</body>
+
+<body package="CineTeatro" selector="quitarCriticaDe:">quitarCriticaDe: unIdCritico
+	"Quita la critica de ese critico y la devuelve"
+	| critica |
+	critica := criticas detect: [:c | c idCritico = unIdCritico] ifNone: [nil].
+	critica isNil ifTrue: [^ErrorCine new raiseSignal: 'Ese critico no escribio una critica de esta pelicula'].
+	criticas remove: critica.
+	^critica</body>
 
 </methods>
 
@@ -1249,6 +1268,15 @@
 <body package="CineTeatro" selector="capacidad">capacidad
 	^butacas size</body>
 
+<body package="CineTeatro" selector="cantidadFilas">cantidadFilas
+	"La fila de cada butaca es su posicionY (1 = fila A)"
+	^butacas inject: 0 into: [:mayor :b | mayor max: b posicionY]</body>
+
+<body package="CineTeatro" selector="butacasPorFila">butacasPorFila
+	| filas |
+	filas := self cantidadFilas.
+	^filas = 0 ifTrue: [0] ifFalse: [butacas size // filas]</body>
+
 <body package="CineTeatro" selector="butacaDeCodigo:">butacaDeCodigo: unCodigo
 	^butacas detect: [:b | b codigo = unCodigo asUppercase] ifNone: [nil]</body>
 
@@ -1266,7 +1294,8 @@
 	butacas isEmpty ifTrue: [^'(sala sin butacas)'].
 	maxX := butacas inject: 0 into: [:m :b | m max: b posicionX].
 	maxY := butacas inject: 0 into: [:m :b | m max: b posicionY].
-	ancho := maxX * 3.
+	"El ancho minimo es el del cartel PANTALLA / ESCENARIO (20 letras), para que no se corte en salas chicas"
+	ancho := maxX * 3 max: 20.
 	ws nextPutAll: '    '; nextPutAll: (String new: ancho withAll: $=); cr.
 	ws nextPutAll: '    '; nextPutAll: (UtilCine rellenar: (String new: ((ancho - 20) // 2 max: 0) withAll: $ ) , 'PANTALLA / ESCENARIO' a: ancho); cr.
 	ws nextPutAll: '    '; nextPutAll: (String new: ancho withAll: $=); cr; cr.
@@ -2139,10 +2168,7 @@
 
 <body package="CineTeatro" selector="altaPersonaNombre:dni:fechaNacimiento:sexo:domicilio:email:celular:">altaPersonaNombre: unNombre dni: unDni fechaNacimiento: unaFecha sexo: unSexo domicilio: unDomicilio email: unEmail celular: unCelular
 	| persona |
-	unNombre trimSeparators isEmpty ifTrue: [^self fallar: 'El nombre es obligatorio'].
-	(UtilCine esEntero: unDni) ifFalse: [^self fallar: 'El DNI debe ser numerico'].
-	(self personaConDni: unDni trimSeparators) isNil ifFalse: [^self fallar: 'Ya existe una persona con DNI ' , unDni].
-	(unaFecha notNil and: [unaFecha &gt; self hoy]) ifTrue: [^self fallar: 'La fecha de nacimiento no puede ser futura'].
+	self validarPersonaNombre: unNombre dni: unDni fechaNacimiento: unaFecha exceptoId: nil.
 	persona := Persona new
 		id: (self siguienteIdEn: personas);
 		nombre: unNombre trimSeparators;
@@ -2157,12 +2183,31 @@
 	self guardar.
 	^persona</body>
 
-<body package="CineTeatro" selector="modificarPersona:nombre:domicilio:email:celular:">modificarPersona: unId nombre: unNombre domicilio: unDomicilio email: unEmail celular: unCelular
+<body package="CineTeatro" selector="validarPersonaNombre:dni:fechaNacimiento:exceptoId:">validarPersonaNombre: unNombre dni: unDni fechaNacimiento: unaFecha exceptoId: unIdOrNil
+	"Validaciones comunes al alta y a la modificacion de una persona.
+	 unIdOrNil es el id de la persona que se esta modificando, o nil si es un alta."
+	unNombre trimSeparators isEmpty ifTrue: [^self fallar: 'El nombre es obligatorio'].
+	self validarDni: unDni exceptoId: unIdOrNil.
+	(unaFecha notNil and: [unaFecha &gt; self hoy]) ifTrue: [^self fallar: 'La fecha de nacimiento no puede ser futura']</body>
+
+<body package="CineTeatro" selector="validarDni:exceptoId:">validarDni: unDni exceptoId: unIdOrNil
+	"El DNI tiene que ser numerico y no puede estar usado por otra persona.
+	 La persona que se esta modificando (unIdOrNil) puede conservar el suyo."
+	| otra |
+	(UtilCine esEntero: unDni) ifFalse: [^self fallar: 'El DNI debe ser numerico'].
+	otra := self personaConDni: unDni trimSeparators.
+	(otra notNil and: [otra id ~= unIdOrNil]) ifTrue: [^self fallar: 'Ya existe una persona con DNI ' , unDni trimSeparators]</body>
+
+<body package="CineTeatro" selector="modificarPersona:nombre:dni:fechaNacimiento:sexo:domicilio:email:celular:">modificarPersona: unId nombre: unNombre dni: unDni fechaNacimiento: unaFecha sexo: unSexo domicilio: unDomicilio email: unEmail celular: unCelular
+	"Modifica los datos de una persona (el id no cambia). Valida lo mismo que el alta."
 	| persona |
 	persona := self personaId: unId.
-	unNombre trimSeparators isEmpty ifTrue: [^self fallar: 'El nombre es obligatorio'].
+	self validarPersonaNombre: unNombre dni: unDni fechaNacimiento: unaFecha exceptoId: unId.
 	persona
 		nombre: unNombre trimSeparators;
+		dni: unDni trimSeparators;
+		fechaNacimiento: unaFecha;
+		sexo: unSexo asUppercase;
 		domicilio: unDomicilio;
 		email: unEmail;
 		celular: unCelular.
@@ -2170,10 +2215,10 @@
 	^persona</body>
 
 <body package="CineTeatro" selector="bajaPersona:">bajaPersona: unId
-	"Solo se puede eliminar una persona que no sea socio, critico ni participe de una obra"
+	"Solo se puede eliminar una persona que no sea (ni haya sido) socio, ni critico, ni participe de una obra"
 	| persona |
 	persona := self personaId: unId.
-	(self socioDePersona: unId) isNil ifFalse: [^self fallar: 'No se puede eliminar: la persona es socio (dar de baja el socio)'].
+	(self socioDePersona: unId) isNil ifFalse: [^self fallar: 'No se puede eliminar: la persona es o fue socio (se conserva su historial de reservas y compras)'].
 	(criticos anySatisfy: [:c | c idPersona = unId]) ifTrue: [^self fallar: 'No se puede eliminar: la persona es critico'].
 	(obras anySatisfy: [:o | o participa: unId]) ifTrue: [^self fallar: 'No se puede eliminar: la persona participa en una pelicula/obra'].
 	personas remove: persona.
@@ -2253,15 +2298,38 @@
 	self guardar.
 	^critica</body>
 
+<body package="CineTeatro" selector="obrasCriticadasPor:">obrasCriticadasPor: unIdCritico
+	"Peliculas sobre las que ese critico dejo una critica"
+	^obras select: [:o | o tieneCriticaDe: unIdCritico]</body>
+
+<body package="CineTeatro" selector="bajaCriticaDe:obra:">bajaCriticaDe: unIdCritico obra: unIdObra
+	"Elimina la critica que un critico dejo sobre una pelicula"
+	| obra critica |
+	self criticoId: unIdCritico.
+	obra := self obraId: unIdObra.
+	(obra tieneCriticaDe: unIdCritico) ifFalse: [^self fallar: 'Ese critico no tiene una critica sobre "' , obra titulo , '"'].
+	critica := obra quitarCriticaDe: unIdCritico.
+	self guardar.
+	^critica</body>
+
+<body package="CineTeatro" selector="bajaCritico:">bajaCritico: unIdCritico
+	"Solo se elimina un critico sin criticas: si no, quedarian criticas de un critico que no existe"
+	| critico cantidad |
+	critico := self criticoId: unIdCritico.
+	cantidad := (self obrasCriticadasPor: unIdCritico) size.
+	cantidad &gt; 0 ifTrue: [^self fallar: 'No se puede eliminar: el critico tiene ' , cantidad printString , ' critica/s. Elimine primero sus criticas'].
+	criticos remove: critico.
+	self guardar.
+	^critico</body>
+
 </methods>
 
 <methods>
 <class-id>AdministradorCine</class-id> <category>gestion obras</category>
 
 <body package="CineTeatro" selector="registrarObra:titulo:descripcion:duracion:clasificacion:director:">registrarObra: unaObra titulo: unTitulo descripcion: unaDescripcion duracion: minutos clasificacion: unaClasificacion director: unIdDirector
-	unTitulo trimSeparators isEmpty ifTrue: [^self fallar: 'El titulo es obligatorio'].
-	minutos &gt; 0 ifFalse: [^self fallar: 'La duracion debe ser mayor a cero'].
-	unIdDirector isNil ifFalse: [self personaId: unIdDirector].
+	"Alta comun a peliculas y obras de teatro: recibe la obra ya creada (Pelicula new u ObraTeatro new)"
+	self validarObraTitulo: unTitulo duracion: minutos director: unIdDirector.
 	unaObra
 		id: (self siguienteIdEn: obras);
 		titulo: unTitulo trimSeparators;
@@ -2280,11 +2348,53 @@
 <body package="CineTeatro" selector="altaObraTeatroTitulo:descripcion:duracion:clasificacion:director:">altaObraTeatroTitulo: unTitulo descripcion: unaDescripcion duracion: minutos clasificacion: unaClasificacion director: unIdDirector
 	^self registrarObra: ObraTeatro new titulo: unTitulo descripcion: unaDescripcion duracion: minutos clasificacion: unaClasificacion director: unIdDirector</body>
 
+<body package="CineTeatro" selector="validarObraTitulo:duracion:director:">validarObraTitulo: unTitulo duracion: minutos director: unIdDirector
+	"Validaciones comunes al alta y a la modificacion de una pelicula u obra"
+	unTitulo trimSeparators isEmpty ifTrue: [^self fallar: 'El titulo es obligatorio'].
+	minutos &gt; 0 ifFalse: [^self fallar: 'La duracion debe ser mayor a cero'].
+	unIdDirector isNil ifFalse: [self personaId: unIdDirector]</body>
+
+<body package="CineTeatro" selector="modificarObra:titulo:descripcion:duracion:clasificacion:director:">modificarObra: unId titulo: unTitulo descripcion: unaDescripcion duracion: minutos clasificacion: unaClasificacion director: unIdDirector
+	"Modifica los datos de una pelicula u obra (el tipo, el elenco, el estado y las criticas no se tocan aca).
+	 La duracion no se cambia si hay funciones que todavia no empezaron: cada funcion ya
+	 calculo su horario de fin con la duracion actual."
+	| obra |
+	obra := self obraId: unId.
+	self validarObraTitulo: unTitulo duracion: minutos director: unIdDirector.
+	(minutos ~= obra duracion and: [self funcionesFuturas anySatisfy: [:f | f idObra = unId]])
+		ifTrue: [^self fallar: 'No se puede cambiar la duracion: hay funciones programadas que todavia no empezaron'].
+	obra
+		titulo: unTitulo trimSeparators;
+		descripcion: unaDescripcion;
+		duracion: minutos;
+		clasificacion: unaClasificacion;
+		director: unIdDirector.
+	self guardar.
+	^obra</body>
+
+<body package="CineTeatro" selector="bajaObra:">bajaObra: unId
+	"Solo se elimina una pelicula u obra que no tenga funciones (ni pasadas ni futuras).
+	 Si es una pelicula, sus criticas se eliminan con ella."
+	| obra cantidad |
+	obra := self obraId: unId.
+	cantidad := (self funcionesDeObra: unId) size.
+	cantidad &gt; 0 ifTrue: [^self fallar: 'No se puede eliminar: "' , obra titulo , '" tiene ' , cantidad printString , ' funcion/es. Si ya no se exhibe, saquela de cartel'].
+	obras remove: obra.
+	self guardar.
+	^obra</body>
+
 <body package="CineTeatro" selector="agregarAlElenco:obra:">agregarAlElenco: unIdPersona obra: unIdObra
 	| obra |
 	self personaId: unIdPersona.
 	obra := self obraId: unIdObra.
 	obra agregarAlElenco: unIdPersona.
+	self guardar.
+	^obra</body>
+
+<body package="CineTeatro" selector="quitarDelElenco:obra:">quitarDelElenco: unIdPersona obra: unIdObra
+	| obra |
+	obra := self obraId: unIdObra.
+	obra quitarDelElenco: unIdPersona.
 	self guardar.
 	^obra</body>
 
@@ -2312,11 +2422,7 @@
 
 <body package="CineTeatro" selector="altaSalaNombre:filas:butacasPorFila:permitePeliculas:permiteTeatro:">altaSalaNombre: unNombre filas: cantFilas butacasPorFila: cantPorFila permitePeliculas: pelis permiteTeatro: teatro
 	| sala |
-	unNombre trimSeparators isEmpty ifTrue: [^self fallar: 'El nombre de la sala es obligatorio'].
-	(salas anySatisfy: [:s | s nombre = unNombre trimSeparators]) ifTrue: [^self fallar: 'Ya existe una sala con ese nombre'].
-	(cantFilas between: 1 and: 26) ifFalse: [^self fallar: 'La cantidad de filas debe estar entre 1 y 26 (A..Z)'].
-	(cantPorFila between: 1 and: 40) ifFalse: [^self fallar: 'Las butacas por fila deben estar entre 1 y 40'].
-	(pelis or: [teatro]) ifFalse: [^self fallar: 'La sala debe permitir peliculas, teatro o ambos'].
+	self validarSalaNombre: unNombre filas: cantFilas butacasPorFila: cantPorFila permitePeliculas: pelis permiteTeatro: teatro exceptoId: nil.
 	sala := Sala new
 		id: (self siguienteIdEn: salas);
 		nombre: unNombre trimSeparators;
@@ -2327,6 +2433,50 @@
 	salas add: sala.
 	self guardar.
 	^sala</body>
+
+<body package="CineTeatro" selector="validarSalaNombre:filas:butacasPorFila:permitePeliculas:permiteTeatro:exceptoId:">validarSalaNombre: unNombre filas: cantFilas butacasPorFila: cantPorFila permitePeliculas: pelis permiteTeatro: teatro exceptoId: unIdOrNil
+	"Validaciones comunes al alta y a la modificacion de una sala.
+	 unIdOrNil es el id de la sala que se esta modificando, o nil si es un alta."
+	unNombre trimSeparators isEmpty ifTrue: [^self fallar: 'El nombre de la sala es obligatorio'].
+	(salas anySatisfy: [:s | s nombre = unNombre trimSeparators and: [s id ~= unIdOrNil]]) ifTrue: [^self fallar: 'Ya existe una sala con ese nombre'].
+	(cantFilas between: 1 and: 26) ifFalse: [^self fallar: 'La cantidad de filas debe estar entre 1 y 26 (A..Z)'].
+	(cantPorFila between: 1 and: 40) ifFalse: [^self fallar: 'Las butacas por fila deben estar entre 1 y 40'].
+	(pelis or: [teatro]) ifFalse: [^self fallar: 'La sala debe permitir peliculas, teatro o ambos']</body>
+
+<body package="CineTeatro" selector="modificarSala:nombre:filas:butacasPorFila:permitePeliculas:permiteTeatro:">modificarSala: unId nombre: unNombre filas: cantFilas butacasPorFila: cantPorFila permitePeliculas: pelis permiteTeatro: teatro
+	"Modifica una sala. Dos cuidados si ya tiene funciones:
+	 - no se le cambian las butacas (hay reservas y ventas hechas con esa distribucion);
+	 - tiene que seguir admitiendo las obras de las funciones que todavia no empezaron."
+	| sala cambiaButacas comoQuedaria |
+	sala := self salaId: unId.
+	self validarSalaNombre: unNombre filas: cantFilas butacasPorFila: cantPorFila permitePeliculas: pelis permiteTeatro: teatro exceptoId: unId.
+	cambiaButacas := cantFilas ~= sala cantidadFilas or: [cantPorFila ~= sala butacasPorFila].
+	(cambiaButacas and: [(self funcionesDeSala: unId) notEmpty])
+		ifTrue: [^self fallar: 'No se pueden cambiar las butacas: la sala ya tiene funciones'].
+	"Se prueba sobre una copia, para no tocar la sala si la validacion falla"
+	comoQuedaria := sala copy permitePeliculas: pelis; permiteTeatro: teatro; yourself.
+	((self funcionesFuturas select: [:f | f idSala = unId]) allSatisfy: [:f | (self obraId: f idObra) puedePresentarseEn: comoQuedaria])
+		ifFalse: [^self fallar: 'No se puede quitar ese tipo de obra: la sala tiene funciones programadas de ese tipo'].
+	sala
+		nombre: unNombre trimSeparators;
+		permitePeliculas: pelis;
+		permiteTeatro: teatro.
+	cambiaButacas ifTrue: [sala generarButacasFilas: cantFilas porFila: cantPorFila].
+	self guardar.
+	^sala</body>
+
+<body package="CineTeatro" selector="bajaSala:">bajaSala: unId
+	"Solo se elimina una sala que no tenga funciones (ni pasadas ni futuras)"
+	| sala cantidad |
+	sala := self salaId: unId.
+	cantidad := (self funcionesDeSala: unId) size.
+	cantidad &gt; 0 ifTrue: [^self fallar: 'No se puede eliminar: la sala ' , sala nombre , ' tiene ' , cantidad printString , ' funcion/es'].
+	salas remove: sala.
+	self guardar.
+	^sala</body>
+
+<body package="CineTeatro" selector="funcionesDeSala:">funcionesDeSala: unIdSala
+	^self ordenarFunciones: (funciones select: [:f | f idSala = unIdSala])</body>
 
 </methods>
 
@@ -2875,68 +3025,75 @@
 		#window: 
 		#(#{UI.WindowSpec} 
 			#label: 'Gestion de Cine / Teatro' 
-			#min: #(#{Core.Point} 1122 521) 
+			#min: #(#{Core.Point} 1122 480) 
 			#max: #(#{Core.Point} 0 0 ) 
-			#bounds: #(#{Graphics.Rectangle} 60 40 1182 811) ) 
+			#bounds: #(#{Graphics.Rectangle} 40 10 1162 670) ) 
 		#component: 
 		#(#{UI.SpecCollection} 
 			#collection: #(
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 10 8) #name: #titulo #label: 'ADMINISTRADOR DEL CINE / TEATRO' #style: #large) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 12 41) #label: 'PERSONAS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 63 224 86) #name: #altaPersona #model: #altaPersona #label: 'Alta de persona' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 88 224 111) #name: #modificarPersona #model: #modificarPersona #label: 'Modificar persona' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 113 224 136) #name: #bajaPersona #model: #bajaPersona #label: 'Eliminar persona' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 138 224 161) #name: #listarPersonas #model: #listarPersonas #label: 'Listar personas' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 12 166) #label: 'SOCIOS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 188 224 211) #name: #altaSocio #model: #altaSocio #label: 'Alta de socio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 213 224 236) #name: #bajaSocio #model: #bajaSocio #label: 'Dar de baja socio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 238 224 261) #name: #reactivarSocio #model: #reactivarSocio #label: 'Reactivar socio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 10 263 224 286) #name: #listarSocios #model: #listarSocios #label: 'Listar socios' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 234 41) #label: 'CRITICOS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 63 446 86) #name: #altaCritico #model: #altaCritico #label: 'Alta de critico' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 88 446 111) #name: #registrarCritica #model: #registrarCritica #label: 'Registrar critica' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 113 446 136) #name: #listarCriticos #model: #listarCriticos #label: 'Listar criticos' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 234 141) #label: 'PELICULAS / OBRAS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 163 446 186) #name: #altaPelicula #model: #altaPelicula #label: 'Alta de pelicula' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 188 446 211) #name: #altaObraTeatro #model: #altaObraTeatro #label: 'Alta de obra de teatro' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 213 446 236) #name: #agregarElenco #model: #agregarElenco #label: 'Agregar al elenco' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 238 446 261) #name: #cambiarEstadoCartel #model: #cambiarEstadoCartel #label: 'Poner / sacar de cartel' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 232 263 446 286) #name: #listarObras #model: #listarObras #label: 'Listar peliculas y obras' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 456 41) #label: 'SALAS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 63 668 86) #name: #altaSala #model: #altaSala #label: 'Alta de sala' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 88 668 111) #name: #listarSalas #model: #listarSalas #label: 'Listar salas (con plano)' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 456 116) #label: 'FUNCIONES') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 138 668 161) #name: #programarFuncion #model: #programarFuncion #label: 'Programar funcion' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 163 668 186) #name: #eliminarFuncion #model: #eliminarFuncion #label: 'Eliminar funcion' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 188 668 211) #name: #cambiarPrecio #model: #cambiarPrecio #label: 'Cambiar precio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 213 668 236) #name: #listarFunciones #model: #listarFunciones #label: 'Listar funciones' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 456 241) #label: 'SISTEMA') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 263 668 286) #name: #fechaSistema #model: #fechaSistema #label: 'Fecha / hora del sistema' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 288 668 311) #name: #cargarDatosPrueba #model: #cargarDatosPrueba #label: 'Cargar datos de prueba' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 454 313 668 336) #name: #recargarDisco #model: #recargarDisco #label: 'Recargar desde disco' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 678 41) #label: 'RESERVAS Y VENTAS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 63 890 86) #name: #nuevaReserva #model: #nuevaReserva #label: 'Nueva reserva (socios)' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 88 890 111) #name: #cancelarReserva #model: #cancelarReserva #label: 'Cancelar reserva' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 113 890 136) #name: #pagarReserva #model: #pagarReserva #label: 'Pagar reserva (venta)' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 138 890 161) #name: #ventaDirecta #model: #ventaDirecta #label: 'Venta directa' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 163 890 186) #name: #listarReservas #model: #listarReservas #label: 'Listar reservas' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 188 890 211) #name: #listarVentas #model: #listarVentas #label: 'Listar ventas' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 678 216) #label: 'CONSULTAS EXTRA') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 238 890 261) #name: #consultaPlano #model: #consultaPlano #label: 'Plano de una funcion' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 263 890 286) #name: #consultaRanking #model: #consultaRanking #label: 'Ranking de ventas' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 288 890 311) #name: #consultaHistorialSocio #model: #consultaHistorialSocio #label: 'Historial de un socio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 313 890 336) #name: #consultaProximas #model: #consultaProximas #label: 'Proximas con lugar' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 676 338 890 361) #name: #consultaParticipaciones #model: #consultaParticipaciones #label: 'Participaciones persona' #defaultable: true) 
-				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 900 41) #label: 'CONSULTAS') 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 63 1112 86) #name: #consultaSalaLibre #model: #consultaSalaLibre #label: '1. Sala libre?' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 88 1112 111) #name: #consultaFuncionesPorFecha #model: #consultaFuncionesPorFecha #label: '2. Funciones por fecha' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 113 1112 136) #name: #consultaFuncionesPorObra #model: #consultaFuncionesPorObra #label: '2. Funciones por obra' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 138 1112 161) #name: #consultaReservasImpagas #model: #consultaReservasImpagas #label: '3. Reservas impagas' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 163 1112 186) #name: #consultaMejoresCriticas #model: #consultaMejoresCriticas #label: '4. Mejores criticas' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 188 1112 211) #name: #consultaIngresos #model: #consultaIngresos #label: '5. Resumen de ingresos' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 213 1112 236) #name: #consultaOcupacion #model: #consultaOcupacion #label: '6. Ocupacion promedio' #defaultable: true) 
-				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 898 238 1112 261) #name: #consultaAgotadas #model: #consultaAgotadas #label: '7. Funciones agotadas' #defaultable: true) 
-				#(#{UI.TextEditorSpec} #layout: #(#{Graphics.LayoutFrame} 10 0 371 0 -10 1 -10 1) #name: #salida #model: #salida #isReadOnly: true #tabRequiresControl: true #style: #fixed) ) ) )</body>
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 10 6) #name: #titulo #label: 'ADMINISTRADOR DEL CINE / TEATRO' #style: #large) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 10 38) #label: 'PERSONAS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 58 161 80) #name: #altaPersona #model: #altaPersona #label: 'Alta de persona' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 82 161 104) #name: #modificarPersona #model: #modificarPersona #label: 'Modificar persona' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 106 161 128) #name: #bajaPersona #model: #bajaPersona #label: 'Eliminar persona' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 130 161 152) #name: #listarPersonas #model: #listarPersonas #label: 'Listar personas' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 10 158) #label: 'SOCIOS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 178 161 200) #name: #altaSocio #model: #altaSocio #label: 'Alta de socio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 202 161 224) #name: #bajaSocio #model: #bajaSocio #label: 'Dar de baja socio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 226 161 248) #name: #reactivarSocio #model: #reactivarSocio #label: 'Reactivar socio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 8 250 161 272) #name: #listarSocios #model: #listarSocios #label: 'Listar socios' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 169 38) #label: 'CRITICOS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 58 320 80) #name: #altaCritico #model: #altaCritico #label: 'Alta de critico' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 82 320 104) #name: #bajaCritico #model: #bajaCritico #label: 'Eliminar critico' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 106 320 128) #name: #registrarCritica #model: #registrarCritica #label: 'Registrar critica' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 130 320 152) #name: #bajaCritica #model: #bajaCritica #label: 'Eliminar critica' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 154 320 176) #name: #listarCriticos #model: #listarCriticos #label: 'Listar criticos' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 169 182) #label: 'SALAS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 202 320 224) #name: #altaSala #model: #altaSala #label: 'Alta de sala' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 226 320 248) #name: #modificarSala #model: #modificarSala #label: 'Modificar sala' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 250 320 272) #name: #bajaSala #model: #bajaSala #label: 'Eliminar sala' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 167 274 320 296) #name: #listarSalas #model: #listarSalas #label: 'Listar salas (con plano)' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 328 38) #label: 'PELICULAS / OBRAS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 58 479 80) #name: #altaPelicula #model: #altaPelicula #label: 'Alta de pelicula' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 82 479 104) #name: #altaObraTeatro #model: #altaObraTeatro #label: 'Alta de obra de teatro' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 106 479 128) #name: #modificarObra #model: #modificarObra #label: 'Modificar pelicula/obra' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 130 479 152) #name: #bajaObra #model: #bajaObra #label: 'Eliminar pelicula/obra' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 154 479 176) #name: #agregarElenco #model: #agregarElenco #label: 'Agregar al elenco' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 178 479 200) #name: #quitarElenco #model: #quitarElenco #label: 'Quitar del elenco' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 202 479 224) #name: #cambiarEstadoCartel #model: #cambiarEstadoCartel #label: 'Poner / sacar de cartel' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 326 226 479 248) #name: #listarObras #model: #listarObras #label: 'Listar peliculas y obras' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 487 38) #label: 'FUNCIONES') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 58 638 80) #name: #programarFuncion #model: #programarFuncion #label: 'Programar funcion' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 82 638 104) #name: #cambiarPrecio #model: #cambiarPrecio #label: 'Cambiar precio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 106 638 128) #name: #eliminarFuncion #model: #eliminarFuncion #label: 'Eliminar funcion' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 130 638 152) #name: #listarFunciones #model: #listarFunciones #label: 'Listar funciones' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 487 158) #label: 'SISTEMA') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 178 638 200) #name: #fechaSistema #model: #fechaSistema #label: 'Fecha / hora del sistema' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 202 638 224) #name: #cargarDatosPrueba #model: #cargarDatosPrueba #label: 'Cargar datos de prueba' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 485 226 638 248) #name: #recargarDisco #model: #recargarDisco #label: 'Recargar desde disco' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 646 38) #label: 'RESERVAS Y VENTAS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 58 797 80) #name: #nuevaReserva #model: #nuevaReserva #label: 'Nueva reserva (socios)' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 82 797 104) #name: #cancelarReserva #model: #cancelarReserva #label: 'Cancelar reserva' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 106 797 128) #name: #pagarReserva #model: #pagarReserva #label: 'Pagar reserva (venta)' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 130 797 152) #name: #ventaDirecta #model: #ventaDirecta #label: 'Venta directa' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 154 797 176) #name: #listarReservas #model: #listarReservas #label: 'Listar reservas' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 644 178 797 200) #name: #listarVentas #model: #listarVentas #label: 'Listar ventas' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 805 38) #label: 'CONSULTAS') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 58 956 80) #name: #consultaSalaLibre #model: #consultaSalaLibre #label: '1. Sala libre?' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 82 956 104) #name: #consultaFuncionesPorFecha #model: #consultaFuncionesPorFecha #label: '2. Funciones por fecha' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 106 956 128) #name: #consultaFuncionesPorObra #model: #consultaFuncionesPorObra #label: '2. Funciones por obra' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 130 956 152) #name: #consultaReservasImpagas #model: #consultaReservasImpagas #label: '3. Reservas impagas' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 154 956 176) #name: #consultaMejoresCriticas #model: #consultaMejoresCriticas #label: '4. Mejores criticas' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 178 956 200) #name: #consultaIngresos #model: #consultaIngresos #label: '5. Resumen de ingresos' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 202 956 224) #name: #consultaOcupacion #model: #consultaOcupacion #label: '6. Ocupacion promedio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 803 226 956 248) #name: #consultaAgotadas #model: #consultaAgotadas #label: '7. Funciones agotadas' #defaultable: true) 
+				#(#{UI.LabelSpec} #layout: #(#{Core.Point} 964 38) #label: 'CONSULTAS EXTRA') 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 58 1115 80) #name: #consultaPlano #model: #consultaPlano #label: 'Plano de una funcion' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 82 1115 104) #name: #consultaRanking #model: #consultaRanking #label: 'Ranking de ventas' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 106 1115 128) #name: #consultaHistorialSocio #model: #consultaHistorialSocio #label: 'Historial de un socio' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 130 1115 152) #name: #consultaProximas #model: #consultaProximas #label: 'Proximas con lugar' #defaultable: true) 
+				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 154 1115 176) #name: #consultaParticipaciones #model: #consultaParticipaciones #label: 'Participaciones persona' #defaultable: true) 
+				#(#{UI.TextEditorSpec} #layout: #(#{Graphics.LayoutFrame} 8 0 304 0 -8 1 -8 1) #name: #salida #model: #salida #isReadOnly: true #tabRequiresControl: true #style: #fixed) ) ) )</body>
 
 </methods>
 
@@ -2947,14 +3104,23 @@
 	"VentanaCine abrir"
 	^self open</body>
 
+<body package="CineTeatro" selector="conAdministrador:">conAdministrador: unAdministrador
+	"Crea la ventana (sin abrirla) para trabajar con ese administrador en lugar del unico
+	 del sistema. Lo usan las pruebas automaticas, que guardan en una carpeta temporal."
+	^self basicNew
+		admin: unAdministrador;
+		initialize;
+		yourself</body>
+
 </methods>
 
 <methods>
 <class-id>VentanaCine</class-id> <category>initialize-release</category>
 
 <body package="CineTeatro" selector="initialize">initialize
+	"Si nadie le paso un administrador (ver conAdministrador:), usa el unico del sistema"
 	super initialize.
-	admin := AdministradorCine default.
+	admin isNil ifTrue: [admin := AdministradorCine default].
 	salida := String new asValue</body>
 
 <body package="CineTeatro" selector="postOpenWith:">postOpenWith: aBuilder
@@ -3041,6 +3207,23 @@
 	r := self dialogoElegir: unTitulo etiquetas: (unaColeccion asArray collect: unBloque) valores: unaColeccion asArray.
 	r isNil ifTrue: [^AccionCancelada new raise].
 	^r</body>
+
+<body package="CineTeatro" selector="elegirCampo:etiquetas:valores:">elegirCampo: unTitulo etiquetas: etiquetas valores: actuales
+	"Para las modificaciones: muestra cada dato con su valor actual y devuelve
+	 el numero (1, 2, 3...) del dato que el usuario quiere cambiar"
+	^self elegir: unTitulo entre: (1 to: etiquetas size) mostrando: [:i | (etiquetas at: i) , ': ' , (actuales at: i)]</body>
+
+<body package="CineTeatro" selector="elegirCritico:entre:">elegirCritico: unTitulo entre: unaColeccion
+	^self elegir: unTitulo entre: unaColeccion mostrando: [:k | k printString , ' ' , (admin nombreDePersona: k idPersona)]</body>
+
+<body package="CineTeatro" selector="elegirClasificacion">elegirClasificacion
+	^self elegir: 'Clasificacion' entre: #('ATP' '+13' '+16' '+18') mostrando: [:x | x]</body>
+
+<body package="CineTeatro" selector="elegirDirector">elegirDirector
+	"Devuelve el id de la persona elegida, o nil si se elige (sin director)"
+	| dir |
+	dir := self elegir: 'Director' entre: (Array with: #ninguno) , admin personas asArray mostrando: [:p | p = #ninguno ifTrue: ['(sin director)'] ifFalse: [p printString]].
+	^dir = #ninguno ifTrue: [nil] ifFalse: [dir id]</body>
 
 <body package="CineTeatro" selector="elegirPersona:entre:">elegirPersona: unTitulo entre: unaColeccion
 	^self elegir: unTitulo entre: unaColeccion mostrando: [:p | p printString]</body>
@@ -3159,10 +3342,14 @@
 <class-id>VentanaCine</class-id> <category>personas</category>
 
 <body package="CineTeatro" selector="altaPersona">altaPersona
-	self ejecutar: [| p |
+	self ejecutar: [| nombre dni p |
+		nombre := self pedir: 'Nombre y apellido'.
+		dni := self pedir: 'DNI (solo numeros)'.
+		"El DNI se valida ahora, para no pedir los demas datos si esta mal o repetido"
+		admin validarDni: dni exceptoId: nil.
 		p := admin
-			altaPersonaNombre: (self pedir: 'Nombre y apellido')
-			dni: (self pedir: 'DNI (solo numeros)')
+			altaPersonaNombre: nombre
+			dni: dni
 			fechaNacimiento: (self pedirFecha: 'Fecha de nacimiento' inicial: nil)
 			sexo: (self elegir: 'Sexo' entre: #('F' 'M' 'X') mostrando: [:x | x])
 			domicilio: (self pedirOpcional: 'Domicilio' inicial: '')
@@ -3171,14 +3358,28 @@
 		self mostrar: 'Persona registrada:' , (String with: Character cr) , p descripcionCompleta]</body>
 
 <body package="CineTeatro" selector="modificarPersona">modificarPersona
-	self ejecutar: [| p |
+	"Muestra los datos actuales, se elige cual cambiar y se pide solo ese; los demas quedan igual"
+	self ejecutar: [| p campo nombre dni fecha sexo domicilio email celular |
 		p := self elegirPersona: 'Persona a modificar' entre: admin personas.
-		admin
-			modificarPersona: p id
-			nombre: (self pedir: 'Nombre y apellido' inicial: p nombre)
-			domicilio: (self pedirOpcional: 'Domicilio' inicial: p domicilio)
-			email: (self pedirOpcional: 'Email' inicial: p email)
-			celular: (self pedirOpcional: 'Celular' inicial: p celular).
+		nombre := p nombre.
+		dni := p dni.
+		fecha := p fechaNacimiento.
+		sexo := p sexo.
+		domicilio := p domicilio.
+		email := p email.
+		celular := p celular.
+		campo := self
+			elegirCampo: 'Que dato de ' , p nombre , ' quiere modificar?'
+			etiquetas: #('Nombre y apellido' 'DNI' 'Fecha de nacimiento' 'Sexo' 'Domicilio' 'Email' 'Celular')
+			valores: (OrderedCollection new add: nombre; add: dni; add: (UtilCine textoFecha: fecha); add: sexo; add: domicilio; add: email; add: celular; yourself).
+		campo = 1 ifTrue: [nombre := self pedir: 'Nombre y apellido' inicial: nombre].
+		campo = 2 ifTrue: [dni := self pedir: 'DNI (solo numeros)' inicial: dni].
+		campo = 3 ifTrue: [fecha := self pedirFecha: 'Fecha de nacimiento' inicial: fecha].
+		campo = 4 ifTrue: [sexo := self elegir: 'Sexo' entre: #('F' 'M' 'X') mostrando: [:x | x]].
+		campo = 5 ifTrue: [domicilio := self pedirOpcional: 'Domicilio' inicial: domicilio].
+		campo = 6 ifTrue: [email := self pedirOpcional: 'Email' inicial: email].
+		campo = 7 ifTrue: [celular := self pedirOpcional: 'Celular' inicial: celular].
+		admin modificarPersona: p id nombre: nombre dni: dni fechaNacimiento: fecha sexo: sexo domicilio: domicilio email: email celular: celular.
 		self mostrar: 'Persona modificada:' , (String with: Character cr) , p descripcionCompleta]</body>
 
 <body package="CineTeatro" selector="bajaPersona">bajaPersona
@@ -3258,16 +3459,32 @@
 
 <body package="CineTeatro" selector="registrarCritica">registrarCritica
 	self ejecutar: [| c o critica |
-		c := self elegir: 'Critico' entre: admin criticos mostrando: [:k | k printString , ' ' , (admin nombreDePersona: k idPersona)].
+		c := self elegirCritico: 'Critico' entre: admin criticos.
 		o := self elegirObra: 'Pelicula a criticar (solo peliculas)' entre: (admin obras select: [:x | x esPelicula]).
 		critica := admin registrarCriticaDe: c id obra: o id resena: (self pedir: 'Resena') puntaje: (self pedirEntero: 'Puntaje (1 a 10)' inicial: nil).
 		self mostrar: 'Critica registrada para "' , o titulo , '": ' , critica printString , (String with: Character cr) , 'Nuevo promedio: ' , (UtilCine textoPromedio: o promedioCriticas)]</body>
+
+<body package="CineTeatro" selector="bajaCritico">bajaCritico
+	self ejecutar: [| c |
+		c := self elegirCritico: 'Critico a eliminar' entre: admin criticos.
+		(self confirmar: 'Eliminar al critico ' , c printString , '?') ifTrue: [
+			admin bajaCritico: c id.
+			self mostrar: 'Se elimino al critico ' , c printString , '. ' , (admin nombreDePersona: c idPersona) , ' sigue en la lista de personas.']]</body>
+
+<body package="CineTeatro" selector="bajaCritica">bajaCritica
+	"Solo se ofrecen los criticos que escribieron alguna critica, y despues sus peliculas"
+	self ejecutar: [| c o critica |
+		c := self elegirCritico: 'Critico que escribio la critica' entre: (admin criticos reject: [:k | (admin obrasCriticadasPor: k id) isEmpty]).
+		o := self elegirObra: 'Pelicula cuya critica se elimina' entre: (admin obrasCriticadasPor: c id).
+		(self confirmar: 'Eliminar la critica de ' , c printString , ' sobre "' , o titulo , '"?') ifTrue: [
+			critica := admin bajaCriticaDe: c id obra: o id.
+			self mostrar: 'Critica eliminada de "' , o titulo , '": ' , critica printString]]</body>
 
 <body package="CineTeatro" selector="listarCriticos">listarCriticos
 	self ejecutar: [| ws |
 		ws := self nuevoTexto: 'CRITICOS (' , admin criticos size printString , ')'.
 		admin criticos do: [:c | | cant |
-			cant := (admin obras select: [:o | o criticas anySatisfy: [:k | k idCritico = c id]]) size.
+			cant := (admin obrasCriticadasPor: c id) size.
 			ws nextPutAll: (self col: c printString ancho: 32) , (self col: (admin nombreDePersona: c idPersona) ancho: 20) , 'alta ' , (UtilCine textoFecha: c fechaAlta) , '  criticas: ' , cant printString; cr].
 		self mostrar: ws contents]</body>
 
@@ -3281,9 +3498,8 @@
 		titulo := self pedir: 'Titulo'.
 		desc := self pedirOpcional: 'Descripcion' inicial: ''.
 		dur := self pedirEntero: 'Duracion (minutos)' inicial: nil.
-		clasif := self elegir: 'Clasificacion' entre: #('ATP' '+13' '+16' '+18') mostrando: [:x | x].
-		dir := self elegir: 'Director' entre: (Array with: #ninguno) , admin personas asArray mostrando: [:p | p = #ninguno ifTrue: ['(sin director)'] ifFalse: [p printString]].
-		dir := dir = #ninguno ifTrue: [nil] ifFalse: [dir id].
+		clasif := self elegirClasificacion.
+		dir := self elegirDirector.
 		o := esPelicula
 			ifTrue: [admin altaPeliculaTitulo: titulo descripcion: desc duracion: dur clasificacion: clasif director: dir]
 			ifFalse: [admin altaObraTeatroTitulo: titulo descripcion: desc duracion: dur clasificacion: clasif director: dir].
@@ -3294,6 +3510,42 @@
 
 <body package="CineTeatro" selector="altaObraTeatro">altaObraTeatro
 	self altaObraArtistica: false</body>
+
+<body package="CineTeatro" selector="modificarObra">modificarObra
+	"Muestra los datos actuales, se elige cual cambiar y se pide solo ese; los demas quedan igual"
+	self ejecutar: [| o campo titulo desc dur clasif dir |
+		o := self elegirObra: 'Pelicula/obra a modificar' entre: admin obras.
+		titulo := o titulo.
+		desc := o descripcion.
+		dur := o duracion.
+		clasif := o clasificacion.
+		dir := o director.
+		campo := self
+			elegirCampo: 'Que dato de "' , titulo , '" quiere modificar?'
+			etiquetas: #('Titulo' 'Descripcion' 'Duracion en minutos' 'Clasificacion' 'Director')
+			valores: (OrderedCollection new add: titulo; add: desc; add: dur printString; add: clasif; add: (admin nombreDePersona: dir); yourself).
+		campo = 1 ifTrue: [titulo := self pedir: 'Titulo' inicial: titulo].
+		campo = 2 ifTrue: [desc := self pedirOpcional: 'Descripcion' inicial: desc].
+		campo = 3 ifTrue: [dur := self pedirEntero: 'Duracion (minutos)' inicial: dur].
+		campo = 4 ifTrue: [clasif := self elegirClasificacion].
+		campo = 5 ifTrue: [dir := self elegirDirector].
+		admin modificarObra: o id titulo: titulo descripcion: desc duracion: dur clasificacion: clasif director: dir.
+		self mostrar: 'Modificada: ' , o printString]</body>
+
+<body package="CineTeatro" selector="bajaObra">bajaObra
+	self ejecutar: [| o aviso |
+		o := self elegirObra: 'Pelicula/obra a eliminar' entre: admin obras.
+		aviso := o criticas isEmpty ifTrue: [''] ifFalse: [' (tambien se eliminan sus ' , o criticas size printString , ' critica/s)'].
+		(self confirmar: 'Eliminar "' , o titulo , '"' , aviso , '?') ifTrue: [
+			admin bajaObra: o id.
+			self mostrar: 'Se elimino "' , o titulo , '"']]</body>
+
+<body package="CineTeatro" selector="quitarElenco">quitarElenco
+	self ejecutar: [| o p |
+		o := self elegirObra: 'Pelicula/obra' entre: (admin obras reject: [:x | x elenco isEmpty]).
+		p := self elegirPersona: 'Persona que se quita del elenco' entre: (o elenco collect: [:id | admin personaId: id]).
+		admin quitarDelElenco: p id obra: o id.
+		self mostrar: p nombre , ' se quito del elenco de "' , o titulo , '"']</body>
 
 <body package="CineTeatro" selector="agregarElenco">agregarElenco
 	self ejecutar: [| o p |
@@ -3340,6 +3592,36 @@
 			permitePeliculas: (self confirmar: 'La sala permite peliculas?')
 			permiteTeatro: (self confirmar: 'La sala permite obras de teatro?').
 		self mostrar: 'Sala registrada: ' , s printString , (String with: Character cr with: Character cr) , (s planoMarcando: #())]</body>
+
+<body package="CineTeatro" selector="modificarSala">modificarSala
+	"Muestra los datos actuales, se elige cual cambiar y se pide solo ese; los demas quedan igual"
+	self ejecutar: [| s campo nombre filas porFila pelis teatro |
+		s := self elegirSala: 'Sala a modificar' entre: admin salas.
+		nombre := s nombre.
+		filas := s cantidadFilas.
+		porFila := s butacasPorFila.
+		pelis := s permitePeliculas.
+		teatro := s permiteTeatro.
+		campo := self
+			elegirCampo: 'Que dato de ' , nombre , ' quiere modificar?'
+			etiquetas: #('Nombre' 'Butacas' 'Tipos de obra')
+			valores: (Array with: nombre with: filas printString , ' filas de ' , porFila printString with: s tiposPermitidosTexto).
+		campo = 1 ifTrue: [nombre := self pedir: 'Nombre de la sala' inicial: nombre].
+		campo = 2 ifTrue: [
+			filas := self pedirEntero: 'Cantidad de filas (1 a 26)' inicial: filas.
+			porFila := self pedirEntero: 'Butacas por fila (1 a 40)' inicial: porFila].
+		campo = 3 ifTrue: [
+			pelis := self confirmar: 'La sala permite peliculas?'.
+			teatro := self confirmar: 'La sala permite obras de teatro?'].
+		admin modificarSala: s id nombre: nombre filas: filas butacasPorFila: porFila permitePeliculas: pelis permiteTeatro: teatro.
+		self mostrar: 'Sala modificada: ' , s printString , (String with: Character cr with: Character cr) , (s planoMarcando: #())]</body>
+
+<body package="CineTeatro" selector="bajaSala">bajaSala
+	self ejecutar: [| s |
+		s := self elegirSala: 'Sala a eliminar' entre: admin salas.
+		(self confirmar: 'Eliminar la sala ' , s nombre , '?') ifTrue: [
+			admin bajaSala: s id.
+			self mostrar: 'Se elimino la sala ' , s nombre]]</body>
 
 <body package="CineTeatro" selector="listarSalas">listarSalas
 	self ejecutar: [| ws |
@@ -3442,6 +3724,8 @@
 		f := self elegirFuncion: 'Funcion' entre: admin proximasFuncionesConDisponibilidad.
 		self mostrar: (admin descripcionFuncion: f) , (String with: Character cr with: Character cr) , (admin planoDeFuncion: f id).
 		codigos := self pedirButacas: 'Butacas a vender'.
+		"Las butacas se validan ahora, para no pedir los datos del pago si alguna esta ocupada o no existe"
+		admin butacas: codigos paraFuncion: f.
 		socio := nil.
 		(self confirmar: 'El comprador es socio? (20% de descuento)') ifTrue: [
 			socio := (self elegirSocio: 'Socio comprador' entre: admin sociosActivos) id].
