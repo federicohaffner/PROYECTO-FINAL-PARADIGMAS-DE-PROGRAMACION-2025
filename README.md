@@ -176,14 +176,5 @@ Casos para mostrar:
 | ![Reservas impagas](docs/capturas/reservas-impagas.png) Consulta 3: reservas pendientes de pago | ![Resumen de ingresos](docs/capturas/resumen-ingresos.png) Consulta 5: resumen de ingresos |
 | ![Ranking de ventas](docs/capturas/ranking-ventas.png) Consulta extra: ranking de ventas | |
 
-## Guion corto para la demostración
-1. **Cargar datos de prueba** → **Listar funciones**.
-2. **Nueva reserva**: elegir un socio y una función. Se muestra el plano; escribir las butacas (ej. `D5 D6`). Probar una butaca ocupada para ver el aviso.
-3. **Cancelar reserva** sobre la de la función que empieza en pocas horas: el sistema no lo permite (regla de 24 hs).
-4. **Pagar reserva** con tarjeta → se ve el 20% de descuento.
-5. **Venta directa** a un no socio → **Plano de una función**.
-6. Recorrer las consultas 1 a 7 y las extra.
-7. Cerrar la ventana, volver a abrir con `VentanaCine open` (o **Recargar desde disco**) y mostrar que los datos persisten.
-
 ---
 UTN FRCU · Paradigmas de Programación 2025 · Federico Haffner
