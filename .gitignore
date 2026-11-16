@@ -8,3 +8,8 @@
 *.tmp
 Thumbs.db
 .DS_Store
+
+# Salidas de las pruebas automaticas
+tests/resultado.txt
+pruebasCineTmp/
+headless-transcript.log
