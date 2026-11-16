@@ -205,18 +205,26 @@ classDiagram
         cargar()
     }
     class Persona
-    class Socio { estado }
+    class Socio {
+        estado
+    }
     class Critico
-    class Critica { puntaje }
+    class Critica {
+        puntaje
+    }
     class ObraArtistica {
         <<abstracta>>
         estado
         elenco
         puedePresentarseEn()
     }
-    class Pelicula { criticas }
+    class Pelicula {
+        criticas
+    }
     class ObraTeatro
-    class Sala { butacas }
+    class Sala {
+        butacas
+    }
     class Butaca
     class Funcion {
         estado
@@ -227,12 +235,18 @@ classDiagram
         estado
         precioUnitario
     }
-    class Venta { monto }
-    class MedioPago { <<abstracta>> }
+    class Venta {
+        monto
+    }
+    class MedioPago {
+        <<abstracta>>
+    }
     class PagoEfectivo
     class PagoTarjeta
     class PagoTransferencia
-    class UtilCine { <<utilidades>> }
+    class UtilCine {
+        <<utilidades>>
+    }
     class ErrorCine
     class AccionCancelada
 
