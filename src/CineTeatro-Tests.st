@@ -1952,6 +1952,46 @@ Funciones (el reloj marca hoy 10:00; entrada $ 1000):
 <body>Pruebas de la interfaz: aprietan cada boton de la ventana (ejecutando el metodo que el boton llama) y contestan los dialogos con un guion. Usan VentanaCineDePrueba, asi que no se abre ninguna ventana. Hay pruebas generales (todos los botones, cancelando en cada paso) y pruebas de cada boton con sus casos de error.</body>
 </comment>
 
+<class>
+<name>EstadosReservaTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>reserva</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>EstadosReservaTest</class-id>
+<body>Pruebas del patron State de Reserva: que se puede hacer en cada estado (pendiente, confirmada, cancelada) y como se pasa de uno a otro. Usan una Reserva suelta, sin funcion ni administrador.</body>
+</comment>
+
+<class>
+<name>DominioTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>socio sala funcion</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>DominioTest</class-id>
+<body>Pruebas de las clases de dominio usadas directamente, sin pasar por las operaciones de AdministradorCine: cada clase aplica las reglas que dependen de sus propios datos (principio Experto). El administrador solo se usa para crear el socio, la sala y la funcion.</body>
+</comment>
+
 <methods>
 <class-id>VentanaCineDePrueba</class-id> <category>initialize-release</category>
 
@@ -2971,6 +3011,309 @@ Funciones (el reloj marca hoy 10:00; entrada $ 1000):
 	panel := self elementosDeLaVentana detect: [:e | e first value == UI.TextEditorSpec].
 	self assert: (panel at: (panel indexOf: #isWrapped:) + 1) equals: false.
 	self assert: (panel at: (panel indexOf: #isReadOnly:) + 1) equals: true</body>
+
+</methods>
+
+<methods>
+<class-id>EstadosReservaTest</class-id> <category>running</category>
+
+<body package="CineTeatro-Tests" selector="setUp">setUp
+	super setUp.
+	reserva := Reserva new</body>
+
+</methods>
+
+<methods>
+<class-id>EstadosReservaTest</class-id> <category>ayudas</category>
+
+<body package="CineTeatro-Tests" selector="unDia">unDia
+	"24 horas, en segundos"
+	^24 * 3600</body>
+
+</methods>
+
+<methods>
+<class-id>EstadosReservaTest</class-id> <category>pruebas</category>
+
+<body package="CineTeatro-Tests" selector="testUnaReservaNuevaEstaPendiente">testUnaReservaNuevaEstaPendiente
+	self assert: reserva estaPendiente.
+	self deny: reserva estaConfirmada.
+	self deny: reserva estaCancelada.
+	self assert: reserva nombreEstado equals: 'pendiente'.
+	self assert: reserva ocupaButacas.
+	self assert: reserva estado class == ReservaPendiente</body>
+
+<body package="CineTeatro-Tests" selector="testPagarUnaPendienteLaConfirma">testPagarUnaPendienteLaConfirma
+	reserva confirmar.
+	self assert: reserva estaConfirmada.
+	self deny: reserva estaPendiente.
+	self assert: reserva nombreEstado equals: 'confirmada'.
+	self assert: reserva ocupaButacas</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarUnaPendienteATiempoLiberaLasButacas">testCancelarUnaPendienteATiempoLiberaLasButacas
+	reserva cancelarEl: self hoy faltando: self unDia.
+	self assert: reserva estaCancelada.
+	self assert: reserva nombreEstado equals: 'cancelada'.
+	self assert: reserva fechaCancelacion equals: self hoy.
+	self deny: reserva ocupaButacas</body>
+
+<body package="CineTeatro-Tests" selector="testCancelarConMenosDe24HorasFallaYNoCambiaNada">testCancelarConMenosDe24HorasFallaYNoCambiaNada
+	| mensaje |
+	mensaje := self mensajeDeError: [reserva cancelarEl: self hoy faltando: self unDia - 1].
+	self assert: mensaje contiene: 'Faltan menos de 24 horas'.
+	self assert: reserva estaPendiente.
+	self assert: reserva fechaCancelacion isNil</body>
+
+<body package="CineTeatro-Tests" selector="testUnaConfirmadaNoSePuedeNiPagarNiCancelar">testUnaConfirmadaNoSePuedeNiPagarNiCancelar
+	reserva confirmar.
+	self assert: (self mensajeDeError: [reserva confirmar]) contiene: 'no esta pendiente de pago (esta confirmada)'.
+	self assert: (self mensajeDeError: [reserva cancelarEl: self hoy faltando: 10 * self unDia]) contiene: 'Solo se pueden cancelar reservas pendientes (la reserva esta confirmada)'.
+	self assert: reserva estaConfirmada</body>
+
+<body package="CineTeatro-Tests" selector="testUnaCanceladaNoSePuedeNiPagarNiCancelar">testUnaCanceladaNoSePuedeNiPagarNiCancelar
+	reserva cancelarEl: self hoy faltando: 10 * self unDia.
+	self assert: (self mensajeDeError: [reserva confirmar]) contiene: 'no esta pendiente de pago (esta cancelada)'.
+	self assert: (self mensajeDeError: [reserva cancelarEl: self hoy faltando: 10 * self unDia]) contiene: 'la reserva esta cancelada'.
+	self assert: reserva estaCancelada</body>
+
+<body package="CineTeatro-Tests" selector="testSoloUnaPendientePuedeCancelarse">testSoloUnaPendientePuedeCancelarse
+	self assert: (ReservaPendiente new puedeCancelarseFaltando: self unDia).
+	self deny: (ReservaPendiente new puedeCancelarseFaltando: self unDia - 1).
+	self deny: (ReservaConfirmada new puedeCancelarseFaltando: 10 * self unDia).
+	self deny: (ReservaCancelada new puedeCancelarseFaltando: 10 * self unDia)</body>
+
+<body package="CineTeatro-Tests" selector="testCadaEstadoContestaQueSiAUnaSolaDeLasTresPreguntas">testCadaEstadoContestaQueSiAUnaSolaDeLasTresPreguntas
+	(OrderedCollection new add: ReservaPendiente new; add: ReservaConfirmada new; add: ReservaCancelada new; yourself) do: [:estado | | respuestas |
+		respuestas := OrderedCollection new add: estado estaPendiente; add: estado estaConfirmada; add: estado estaCancelada; yourself.
+		self assert: (respuestas select: [:r | r]) size equals: 1]</body>
+
+<body package="CineTeatro-Tests" selector="testSoloLaCanceladaLiberaLasButacas">testSoloLaCanceladaLiberaLasButacas
+	self assert: ReservaPendiente new ocupaButacas.
+	self assert: ReservaConfirmada new ocupaButacas.
+	self deny: ReservaCancelada new ocupaButacas</body>
+
+<body package="CineTeatro-Tests" selector="testDosEstadosDeLaMismaClaseSonIguales">testDosEstadosDeLaMismaClaseSonIguales
+	"Importa al releer de disco: cada reserva vuelve con su propio objeto estado"
+	self assert: ReservaPendiente new = ReservaPendiente new.
+	self deny: ReservaPendiente new = ReservaCancelada new.
+	self deny: ReservaPendiente new = #pendiente.
+	self assert: ReservaPendiente new printString equals: 'pendiente'</body>
+
+<body package="CineTeatro-Tests" selector="testElEstadoSeConservaAlGuardarYReleer">testElEstadoSeConservaAlGuardarYReleer
+	| socio funcion pendiente pagada cancelada otro |
+	socio := self socio: 'Ana'.
+	funcion := self funcionDe: (self pelicula: 'Peli') en: self salaCine dia: 5 hora: 20.
+	pendiente := admin reservarSocio: socio id funcion: funcion id butacas: #('A1').
+	pagada := admin reservarSocio: socio id funcion: funcion id butacas: #('A2').
+	cancelada := admin reservarSocio: socio id funcion: funcion id butacas: #('A3').
+	admin venderReserva: pagada id medioPago: PagoEfectivo new.
+	admin cancelarReserva: cancelada id.
+	otro := self releer.
+	self assert: (otro reservaId: pendiente id) estaPendiente.
+	self assert: (otro reservaId: pagada id) estaConfirmada.
+	self assert: (otro reservaId: cancelada id) estaCancelada.
+	self assert: (otro reservaId: cancelada id) nombreEstado equals: 'cancelada'.
+	"La butaca de la cancelada quedo libre: 12 - 2"
+	self assert: (otro funcionId: funcion id) butacasLibres equals: 10.
+	"Y despues de releer se puede seguir operando"
+	otro venderReserva: pendiente id medioPago: PagoEfectivo new.
+	self assert: (otro reservaId: pendiente id) estaConfirmada</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>running</category>
+
+<body package="CineTeatro-Tests" selector="setUp">setUp
+	super setUp.
+	socio := self socio: 'Ana'.
+	sala := self salaCine.
+	funcion := self funcionDe: (self pelicula: 'Peli') en: sala dia: 5 hora: 20</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>ayudas</category>
+
+<body package="CineTeatro-Tests" selector="butacas:">butacas: unosCodigos
+	^sala butacasDeCodigos: unosCodigos</body>
+
+<body package="CineTeatro-Tests" selector="reservar:numero:">reservar: unosCodigos numero: unId
+	"Reserva directamente en la funcion, hoy a las 10"
+	^funcion reservar: (self butacas: unosCodigos) para: socio numero: unId fecha: self hoy hora: (self hora: 10)</body>
+
+<body package="CineTeatro-Tests" selector="tarjetaDeCredito">tarjetaDeCredito
+	^PagoTarjeta new tipoTarjeta: #credito; marca: 'VISA'; titular: 'Ana'; ultimosDigitos: '1234'; cuotas: 3; yourself</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>sala</category>
+
+<body package="CineTeatro-Tests" selector="testLaSalaEntregaSusButacasPorCodigo">testLaSalaEntregaSusButacasPorCodigo
+	| butacas |
+	butacas := sala butacasDeCodigos: #('a1' 'C4').
+	self assert: butacas size equals: 2.
+	self assert: butacas first codigo equals: 'A1'.
+	self assert: butacas last codigo equals: 'C4'</body>
+
+<body package="CineTeatro-Tests" selector="testLaSalaRechazaCodigosVaciosRepetidosOInexistentes">testLaSalaRechazaCodigosVaciosRepetidosOInexistentes
+	self assert: (self mensajeDeError: [sala butacasDeCodigos: #()]) contiene: 'al menos una butaca'.
+	self assert: (self mensajeDeError: [sala butacasDeCodigos: #('A1' 'a1')]) contiene: 'repetidas'.
+	self assert: (self mensajeDeError: [sala butacasDeCodigos: #('A1' 'D1')]) contiene: 'La butaca D1 no existe en la sala Sala Cine'</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>importes</category>
+
+<body package="CineTeatro-Tests" selector="testVentaCalculaElImporteConDescuentoYRedondeo">testVentaCalculaElImporteConDescuentoYRedondeo
+	self assert: (Venta importe: 1000 para: nil) equals: 1000.
+	self assert: (Venta importe: 1000 para: socio) equals: 800.
+	"Redondea al centavo: 333,666... -&gt; 333,67 y con el 20% de descuento 266,933... -&gt; 266,93"
+	self assert: (Venta importe: 1001 / 3 para: nil) equals: 33367 / 100.
+	self assert: (Venta importe: 1001 / 3 para: socio) equals: 26693 / 100</body>
+
+<body package="CineTeatro-Tests" selector="testLaReservaSabeCuantoVale">testLaReservaSabeCuantoVale
+	| r |
+	r := self reservar: #('A1' 'A2') numero: 1.
+	self assert: r importeBruto equals: 2000.
+	self assert: (r importePara: socio) equals: 1600.
+	"Aunque despues cambie el precio de la funcion"
+	funcion precioEntrada: 3000.
+	self assert: (r importePara: socio) equals: 1600.
+	self assert: (funcion importeDe: 2 para: socio) equals: 4800.
+	self assert: (funcion importeDe: 2 para: nil) equals: 6000</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>funcion</category>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionReserva">testLaFuncionReserva
+	| r |
+	r := self reservar: #('A1' 'A2') numero: 7.
+	self assert: r id equals: 7.
+	self assert: r idFuncion equals: funcion id.
+	self assert: r idSocio equals: socio id.
+	self assert: r precioUnitario equals: 1000.
+	self assert: r fechaReserva equals: self hoy.
+	self assert: r estaPendiente.
+	self assert: (funcion listaReservas includes: r).
+	self assert: funcion butacasLibres equals: 10</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionNoReservaButacasOcupadas">testLaFuncionNoReservaButacasOcupadas
+	self reservar: #('A1') numero: 1.
+	self assert: (self mensajeDeError: [self reservar: #('B1' 'A1') numero: 2]) contiene: 'La butaca A1 ya esta reservada o vendida'.
+	self assert: funcion listaReservas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionNoReservaParaUnSocioInactivo">testLaFuncionNoReservaParaUnSocioInactivo
+	socio desactivar.
+	self assert: (self mensajeDeError: [self reservar: #('A1') numero: 1]) contiene: 'Solo los socios activos pueden reservar'.
+	self assert: funcion listaReservas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionNoReservaSiYaEmpezo">testLaFuncionNoReservaSiYaEmpezo
+	| mensaje |
+	mensaje := self mensajeDeError: [funcion reservar: (self butacas: #('A1')) para: socio numero: 1 fecha: (self dia: 5) hora: (self hora: 20)].
+	self assert: mensaje contiene: 'La funcion ya comenzo o finalizo'.
+	self assert: funcion listaReservas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionAgotadaNoReservaYAlCancelarVuelveAEstarDisponible">testLaFuncionAgotadaNoReservaYAlCancelarVuelveAEstarDisponible
+	| r |
+	sala := self salaChica.
+	funcion := self funcionDe: (self pelicula: 'Otra') en: sala dia: 6 hora: 20.
+	r := self reservar: #('A1' 'A2') numero: 1.
+	self assert: funcion estaAgotada.
+	self assert: (self mensajeDeError: [self reservar: #('A1') numero: 2]) contiene: 'La funcion esta agotada'.
+	funcion cancelar: r fecha: self hoy hora: (self hora: 10).
+	self assert: r estaCancelada.
+	self deny: funcion estaAgotada.
+	self assert: funcion butacasLibres equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionNoCancelaConMenosDe24Horas">testLaFuncionNoCancelaConMenosDe24Horas
+	| r |
+	r := self reservar: #('A1') numero: 1.
+	self assert: (self mensajeDeError: [funcion cancelar: r fecha: (self dia: 4) hora: (self hora: 21)]) contiene: 'Faltan menos de 24 horas'.
+	self assert: r estaPendiente.
+	self assert: funcion butacasLibres equals: 11</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionCobraUnaReserva">testLaFuncionCobraUnaReserva
+	| r v |
+	r := self reservar: #('A1' 'A2') numero: 1.
+	v := funcion cobrar: r a: socio medioPago: PagoEfectivo new numero: 5 fecha: self hoy hora: (self hora: 11).
+	self assert: v id equals: 5.
+	self assert: v idReserva equals: r id.
+	self assert: v monto equals: 1600.
+	self assert: v cantidadEntradas equals: 2.
+	self assert: r estaConfirmada.
+	self assert: funcion listaVentas size equals: 1.
+	"Una reserva ya pagada no se cobra dos veces"
+	self assert: (self mensajeDeError: [funcion cobrar: r a: socio medioPago: PagoEfectivo new numero: 6 fecha: self hoy hora: (self hora: 11)]) contiene: 'no esta pendiente de pago'.
+	self assert: funcion listaVentas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testLaFuncionVendeDirecto">testLaFuncionVendeDirecto
+	| v |
+	v := funcion vender: (self butacas: #('B1')) a: nil medioPago: PagoEfectivo new numero: 1 fecha: self hoy hora: (self hora: 10).
+	self assert: v monto equals: 1000.
+	self assert: v esDirecta.
+	self deny: v esDeSocio.
+	v := funcion vender: (self butacas: #('B2')) a: socio medioPago: PagoEfectivo new numero: 2 fecha: self hoy hora: (self hora: 10).
+	self assert: v monto equals: 800.
+	self assert: v idSocio equals: socio id.
+	self assert: funcion butacasLibres equals: 10.
+	socio desactivar.
+	self assert: (self mensajeDeError: [funcion vender: (self butacas: #('B3')) a: socio medioPago: PagoEfectivo new numero: 3 fecha: self hoy hora: (self hora: 10)]) contiene: 'no tiene descuento'.
+	self assert: funcion listaVentas size equals: 2</body>
+
+</methods>
+
+<methods>
+<class-id>DominioTest</class-id> <category>medios de pago</category>
+
+<body package="CineTeatro-Tests" selector="testLaTarjetaValidaSusDatos">testLaTarjetaValidaSusDatos
+	| tarjeta |
+	tarjeta := self tarjetaDeCredito.
+	tarjeta validar.
+	tarjeta cuotas: 12.
+	tarjeta validar.
+	tarjeta cuotas: 13.
+	self assert: (self mensajeDeError: [tarjeta validar]) contiene: 'Cantidad de cuotas invalida'.
+	tarjeta cuotas: 0.
+	self deberiaFallar: [tarjeta validar].
+	tarjeta cuotas: 1.
+	#('12' '12345' 'abcd' '') do: [:digitos |
+		tarjeta ultimosDigitos: digitos.
+		self assert: (self mensajeDeError: [tarjeta validar]) contiene: 'exactamente 4 digitos']</body>
+
+<body package="CineTeatro-Tests" selector="testElDebitoNoTieneCuotas">testElDebitoNoTieneCuotas
+	| tarjeta |
+	tarjeta := self tarjetaDeCredito.
+	tarjeta tipoTarjeta: #debito.
+	self assert: (self mensajeDeError: [tarjeta validar]) contiene: 'Cantidad de cuotas invalida'.
+	tarjeta cuotas: 1.
+	tarjeta validar</body>
+
+<body package="CineTeatro-Tests" selector="testElEfectivoYLaTransferenciaValidanLoSuyo">testElEfectivoYLaTransferenciaValidanLoSuyo
+	| transferencia |
+	PagoEfectivo new validar.
+	transferencia := PagoTransferencia new.
+	self assert: (self mensajeDeError: [transferencia validar]) contiene: 'Faltan el alias o el numero de operacion'.
+	transferencia aliasOrigen: 'ana.alias'.
+	self deberiaFallar: [transferencia validar].
+	transferencia numeroOperacion: '555'.
+	transferencia validar</body>
+
+<body package="CineTeatro-Tests" selector="testUnPagoInvalidoNoGeneraLaVentaNiConfirmaLaReserva">testUnPagoInvalidoNoGeneraLaVentaNiConfirmaLaReserva
+	| tarjeta r |
+	tarjeta := self tarjetaDeCredito.
+	tarjeta ultimosDigitos: '12'.
+	self deberiaFallar: [admin venderFuncion: funcion id butacas: #('B1') medioPago: tarjeta socio: nil].
+	r := admin reservarSocio: socio id funcion: funcion id butacas: #('A1').
+	self deberiaFallar: [admin venderReserva: r id medioPago: tarjeta].
+	self assert: r estaPendiente.
+	self assert: funcion listaVentas isEmpty.
+	self assert: funcion butacasLibres equals: 11.
+	self assert: self releer todasLasVentas isEmpty</body>
 
 </methods>
 
