@@ -198,6 +198,13 @@
 	#('31/02/2030' '29/02/2030' '15/13/2030' '0/5/2030' 'hola' '10/06' '10-06-2030' '10/06/2030/1' 'a/b/c')
 		do: [:texto | self deberiaFallar: [UtilCine fechaDesde: texto]]</body>
 
+<body package="CineTeatro-Tests" selector="testFechaDesdeExigeElAnioCompleto">testFechaDesdeExigeElAnioCompleto
+	"Con dos digitos no se sabe si 90 es 1990 o 2090; tampoco se aceptan anios disparatados"
+	self assert: (self mensajeDeError: [UtilCine fechaDesde: '12/03/90']) contiene: 'anio completo'.
+	self deberiaFallar: [UtilCine fechaDesde: '1/1/20266'].
+	self deberiaFallar: [UtilCine fechaDesde: '1/1/1899'].
+	self assert: (UtilCine fechaDesde: '12/03/1990') equals: (Date newDay: 12 monthNumber: 3 year: 1990)</body>
+
 <body package="CineTeatro-Tests" selector="testHoraDesde">testHoraDesde
 	self assert: (UtilCine horaDesde: '21:30') equals: (self hora: 21 minutos: 30).
 	self assert: (UtilCine horaDesde: '9:5') equals: (self hora: 9 minutos: 5).

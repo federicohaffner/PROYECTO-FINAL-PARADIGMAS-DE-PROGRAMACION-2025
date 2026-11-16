@@ -480,13 +480,6 @@
 <body package="CineTeatro" selector="linea:">linea: n
 	^String new: n withAll: $-</body>
 
-<body package="CineTeatro" selector="textoSimbolo:">textoSimbolo: unSimbolo
-	unSimbolo isNil ifTrue: [^'-'].
-	^unSimbolo asString</body>
-
-<body package="CineTeatro" selector="textoSiNo:">textoSiNo: unBooleano
-	^unBooleano ifTrue: ['Si'] ifFalse: ['No']</body>
-
 </methods>
 
 <methods>
@@ -565,7 +558,7 @@
 	d := (partes at: 1) asNumber.
 	m := (partes at: 2) asNumber.
 	a := (partes at: 3) asNumber.
-	a &lt; 100 ifTrue: [a := a + 2000].
+	(a between: 1900 and: 2100) ifFalse: [^ErrorCine new raiseSignal: 'Escriba el anio completo, con 4 digitos (dd/mm/aaaa): ' , unString printString].
 	fecha := [Date newDay: d monthNumber: m year: a] on: Error do: [:e | e return: nil].
 	fecha isNil ifTrue: [^ErrorCine new raiseSignal: 'Fecha inexistente: ' , unString printString].
 	^fecha</body>
@@ -1052,15 +1045,6 @@
 </methods>
 
 <methods>
-<class-id>Pelicula class</class-id> <category>instance creation</category>
-
-<body package="CineTeatro" selector="new">new
-	"Answer a newly created and initialized instance."
-	^super new initialize</body>
-
-</methods>
-
-<methods>
 <class-id>Pelicula</class-id> <category>initialize-release</category>
 
 <body package="CineTeatro" selector="initialize">initialize
@@ -1096,15 +1080,6 @@
 	anterior := criticas detect: [:c | c idCritico = unaCritica idCritico] ifNone: [nil].
 	anterior isNil ifFalse: [criticas remove: anterior].
 	criticas add: unaCritica</body>
-
-</methods>
-
-<methods>
-<class-id>ObraTeatro class</class-id> <category>instance creation</category>
-
-<body package="CineTeatro" selector="new">new
-	"Answer a newly created and initialized instance."
-	^super new initialize</body>
 
 </methods>
 
@@ -1683,15 +1658,6 @@
 </methods>
 
 <methods>
-<class-id>PagoEfectivo class</class-id> <category>instance creation</category>
-
-<body package="CineTeatro" selector="new">new
-	"Answer a newly created and initialized instance."
-	^super new initialize</body>
-
-</methods>
-
-<methods>
 <class-id>PagoEfectivo</class-id> <category>polimorfismo</category>
 
 <body package="CineTeatro" selector="tipo">tipo
@@ -1738,15 +1704,6 @@
 </methods>
 
 <methods>
-<class-id>PagoTarjeta class</class-id> <category>instance creation</category>
-
-<body package="CineTeatro" selector="new">new
-	"Answer a newly created and initialized instance."
-	^super new initialize</body>
-
-</methods>
-
-<methods>
 <class-id>PagoTarjeta</class-id> <category>initialize-release</category>
 
 <body package="CineTeatro" selector="initialize">initialize
@@ -1786,15 +1743,6 @@
 
 <body package="CineTeatro" selector="numeroOperacion:">numeroOperacion: unNumeroOperacion
 	numeroOperacion := unNumeroOperacion</body>
-
-</methods>
-
-<methods>
-<class-id>PagoTransferencia class</class-id> <category>instance creation</category>
-
-<body package="CineTeatro" selector="new">new
-	"Answer a newly created and initialized instance."
-	^super new initialize</body>
 
 </methods>
 
@@ -2171,9 +2119,6 @@
 <body package="CineTeatro" selector="reservaId:">reservaId: unId
 	^self buscar: unId en: self todasLasReservas nombre: 'una reserva'</body>
 
-<body package="CineTeatro" selector="ventaId:">ventaId: unId
-	^self buscar: unId en: self todasLasVentas nombre: 'una venta'</body>
-
 <body package="CineTeatro" selector="nombreDePersona:">nombreDePersona: unIdPersona
 	unIdPersona isNil ifTrue: [^'-'].
 	^(personas detect: [:p | p id = unIdPersona] ifNone: [nil])
@@ -2186,11 +2131,6 @@
 	socio := socios detect: [:s | s id = unIdSocio] ifNone: [nil].
 	socio isNil ifTrue: [^'(socio ' , unIdSocio printString , ')'].
 	^self nombreDePersona: socio idPersona</body>
-
-<body package="CineTeatro" selector="socioActivoDePersona:">socioActivoDePersona: unIdPersona
-	| s |
-	s := self socioDePersona: unIdPersona.
-	^(s notNil and: [s estaActivo]) ifTrue: [s] ifFalse: [nil]</body>
 
 </methods>
 
@@ -2625,6 +2565,7 @@
 	"Consulta 5: ingresos entre fechas, con totales y discriminado por tipo de cliente.
 	 Devuelve un Dictionary con los totales."
 	| ventas resumen porMedio |
+	fecha2 &lt; fecha1 ifTrue: [^self fallar: 'La fecha final es anterior a la inicial'].
 	ventas := self todasLasVentas select: [:v | v fecha between: fecha1 and: fecha2].
 	resumen := Dictionary new.
 	resumen at: #ventas put: ventas.
@@ -2698,17 +2639,17 @@
 	 para generar funciones y ventas en el pasado y en el futuro respecto de hoy."
 	| hoy p o s f |
 	hoy := Date today.
-	self usarRelojReal.
 	self vaciar.
-	self simularFecha: (hoy subtractDays: 20) hora: (Time fromSeconds: 9 * 3600).
+	"ensure: garantiza que el reloj vuelva a ser el real aunque algo falle en el medio"
+	[self simularFecha: (hoy subtractDays: 20) hora: (Time fromSeconds: 9 * 3600).
 	p := self cargarPersonasDePrueba.
 	self cargarSociosYCriticosDePrueba: p.
 	s := self cargarSalasDePrueba.
 	o := self cargarObrasDePrueba: p.
 	self cargarCriticasDePrueba: o.
 	f := self cargarFuncionesDePrueba: o salas: s desde: hoy.
-	self cargarMovimientosDePrueba: f desde: hoy.
-	self usarRelojReal.
+	self cargarMovimientosDePrueba: f desde: hoy]
+		ensure: [self usarRelojReal].
 	(self obraId: 5) sacarDeCartel.
 	self guardar</body>
 
@@ -3606,7 +3547,7 @@
 		pos := 0.
 		admin peliculasEnCarteleraPorCriticas do: [:o |
 			pos := pos + 1.
-			ws nextPutAll: (self num: pos printString ancho: 3) , '. ' , (self col: o titulo ancho: 28) , 'promedio ' , (self num: (UtilCine textoPromedio: o promedioCriticas) ancho: 5) , '  (' , o criticas size printString , ' criticas)'; cr].
+			ws nextPutAll: (self num: pos printString ancho: 3) , '. ' , (self col: o titulo ancho: 28) , 'promedio ' , (self num: (UtilCine textoPromedio: o promedioCriticas) ancho: 5) , '  (' , o criticas size printString , ' critica/s)'; cr].
 		pos = 0 ifTrue: [ws nextPutAll: '(no hay peliculas en cartel con criticas)'].
 		self mostrar: ws contents]</body>
 
@@ -3614,7 +3555,6 @@
 	self ejecutar: [| f1 f2 r ws |
 		f1 := self pedirFecha: 'Desde' inicial: (admin hoy subtractDays: 30).
 		f2 := self pedirFecha: 'Hasta' inicial: admin hoy.
-		f2 &lt; f1 ifTrue: [^ErrorCine new raiseSignal: 'La fecha final es anterior a la inicial'].
 		r := admin resumenIngresosDesde: f1 hasta: f2.
 		ws := self nuevoTexto: 'CONSULTA 5 - RESUMEN DE INGRESOS DEL ' , (UtilCine textoFecha: f1) , ' AL ' , (UtilCine textoFecha: f2).
 		ws nextPutAll: 'Cantidad de ventas: ' , (r at: #ventas) size printString; cr; cr.
