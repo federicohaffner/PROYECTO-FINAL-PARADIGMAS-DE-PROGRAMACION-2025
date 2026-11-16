@@ -1417,4 +1417,499 @@
 
 </methods>
 
+<class>
+<name>ConsultasTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>cine chica teatro alfa beta gamma obra ana beto f1 f2 f3 f4</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>ConsultasTest</class-id>
+<body>Pruebas de las 7 consultas del enunciado y de las consultas extra. Todas parten del mismo escenario, armado en setUp:
+
+Salas: cine (12 butacas), chica (2) y teatro (10).
+Peliculas: Alfa, Beta y Gamma (fuera de cartel). Obra de teatro: Obra.
+Socios: ana y beto. Criticas: Alfa 8 y 6, Beta 9, Gamma 10.
+Funciones (el reloj marca hoy 10:00; entrada $ 1000):
+  f1 Alfa en cine, manana 20:00: venta a no socio A1 A2 A3 (efectivo), venta a ana B1 (tarjeta), reserva pendiente de beto C1 C2.
+  f2 Alfa en chica, en 2 dias 20:00: venta a no socio A1 A2 (transferencia), queda agotada.
+  f3 Beta en cine, en 2 dias 18:00: reserva pendiente de ana A1 y reserva cancelada de ana A2.
+  f4 Obra en teatro, en 3 dias 21:00: sin movimientos.</body>
+</comment>
+
+<methods>
+<class-id>ConsultasTest</class-id> <category>running</category>
+
+<body package="CineTeatro-Tests" selector="setUp">setUp
+	| c1 c2 tarjeta transferencia cancelada |
+	super setUp.
+	cine := self salaCine.
+	chica := self salaChica.
+	teatro := self salaTeatro.
+	alfa := self pelicula: 'Alfa'.
+	beta := self pelicula: 'Beta'.
+	gamma := self pelicula: 'Gamma'.
+	obra := self obraDeTeatro: 'Obra'.
+	ana := self socio: 'Ana'.
+	beto := self socio: 'Beto'.
+	c1 := self critico: 'critico1'.
+	c2 := self critico: 'critico2'.
+	admin registrarCriticaDe: c1 id obra: alfa id resena: 'Buena' puntaje: 8.
+	admin registrarCriticaDe: c2 id obra: alfa id resena: 'Regular' puntaje: 6.
+	admin registrarCriticaDe: c1 id obra: beta id resena: 'Excelente' puntaje: 9.
+	admin registrarCriticaDe: c2 id obra: gamma id resena: 'Perfecta' puntaje: 10.
+	admin sacarDeCartel: gamma id.
+	f1 := self funcionDe: alfa en: cine dia: 1 hora: 20.
+	f2 := self funcionDe: alfa en: chica dia: 2 hora: 20.
+	f3 := self funcionDe: beta en: cine dia: 2 hora: 18.
+	f4 := self funcionDe: obra en: teatro dia: 3 hora: 21.
+	tarjeta := PagoTarjeta new tipoTarjeta: #debito; marca: 'VISA'; titular: 'Ana'; ultimosDigitos: '1234'; yourself.
+	transferencia := PagoTransferencia new aliasOrigen: 'alias'; numeroOperacion: '1'; yourself.
+	admin venderFuncion: f1 id butacas: #('A1' 'A2' 'A3') medioPago: PagoEfectivo new socio: nil.
+	admin venderFuncion: f1 id butacas: #('B1') medioPago: tarjeta socio: ana id.
+	admin reservarSocio: beto id funcion: f1 id butacas: #('C1' 'C2').
+	admin venderFuncion: f2 id butacas: #('A1' 'A2') medioPago: transferencia socio: nil.
+	admin reservarSocio: ana id funcion: f3 id butacas: #('A1').
+	cancelada := admin reservarSocio: ana id funcion: f3 id butacas: #('A2').
+	admin cancelarReserva: cancelada id</body>
+
+</methods>
+
+<methods>
+<class-id>ConsultasTest</class-id> <category>consultas del enunciado</category>
+
+<body package="CineTeatro-Tests" selector="testConsulta1SalaLibreEntreFechasYHorarios">testConsulta1SalaLibreEntreFechasYHorarios
+	"En cine hay una funcion manana de 20:00 a 21:40"
+	self assert: (admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 16) hasta: (self dia: 1) hora: (self hora: 20)).
+	self deny: (admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 19) hasta: (self dia: 1) hora: (self hora: 21)).
+	self deny: (admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 21) hasta: (self dia: 1) hora: (self hora: 23)).
+	self assert: (admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 21 minutos: 40) hasta: (self dia: 1) hora: (self hora: 23)).
+	"Un intervalo de varios dias"
+	self deny: (admin salaLibre: cine id desde: self hoy hora: (self hora: 0) hasta: (self dia: 5) hora: (self hora: 0)).
+	self assert: (admin salaLibre: cine id desde: (self dia: 3) hora: (self hora: 0) hasta: (self dia: 9) hora: (self hora: 0)).
+	"Otra sala a la misma hora"
+	self assert: (admin salaLibre: teatro id desde: (self dia: 1) hora: (self hora: 19) hasta: (self dia: 1) hora: (self hora: 21)).
+	self assert: (admin funcionesEnSala: cine id desde: (UtilCine segundosDe: (self dia: 1) hora: (self hora: 19)) hasta: (UtilCine segundosDe: (self dia: 1) hora: (self hora: 21))) asArray equals: (Array with: f1)</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta1ValidaElIntervaloYLaSala">testConsulta1ValidaElIntervaloYLaSala
+	self assert: (self mensajeDeError: [admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 21) hasta: (self dia: 1) hora: (self hora: 19)]) contiene: 'posterior al inicio'.
+	self deberiaFallar: [admin salaLibre: cine id desde: (self dia: 1) hora: (self hora: 21) hasta: (self dia: 1) hora: (self hora: 21)].
+	self deberiaFallar: [admin salaLibre: 99 desde: (self dia: 1) hora: (self hora: 19) hasta: (self dia: 1) hora: (self hora: 21)]</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta2FuncionesPorFecha">testConsulta2FuncionesPorFecha
+	"Salen ordenadas por horario"
+	self assert: (admin funcionesDelDia: (self dia: 2)) asArray equals: (Array with: f3 with: f2).
+	self assert: (admin funcionesDelDia: (self dia: 1)) asArray equals: (Array with: f1).
+	self assert: (admin funcionesDelDia: (self dia: 9)) isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta2FuncionesPorPeliculaUObra">testConsulta2FuncionesPorPeliculaUObra
+	self assert: (admin funcionesDeObra: alfa id) asArray equals: (Array with: f1 with: f2).
+	self assert: (admin funcionesDeObra: obra id) asArray equals: (Array with: f4).
+	self assert: (admin funcionesDeObra: gamma id) isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta3ClientesConReservasPendientesDePago">testConsulta3ClientesConReservasPendientesDePago
+	"Devuelve pares socio -> sus reservas pendientes. La cancelada de ana no cuenta."
+	| lista |
+	lista := admin sociosConReservasPendientes.
+	self assert: lista size equals: 2.
+	self assert: lista first key == ana.
+	self assert: lista first value size equals: 1.
+	self assert: lista first value first idFuncion equals: f3 id.
+	self assert: lista last key == beto.
+	self assert: lista last value first textoButacas equals: 'C1 C2'.
+	self assert: (admin montoDeReserva: lista last value first) equals: 1600.
+	"Cuando beto paga, deja de figurar"
+	admin venderReserva: lista last value first id medioPago: PagoEfectivo new.
+	lista := admin sociosConReservasPendientes.
+	self assert: lista size equals: 1.
+	self assert: lista first key == ana</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta4PeliculasEnCarteleraConMejoresCriticas">testConsulta4PeliculasEnCarteleraConMejoresCriticas
+	"De mejor a peor promedio. No entran: Gamma (fuera de cartel), la obra de teatro ni las peliculas sin criticas."
+	| sinCriticas |
+	sinCriticas := self pelicula: 'Sin criticas'.
+	self assert: admin peliculasEnCarteleraPorCriticas asArray equals: (Array with: beta with: alfa).
+	self assert: beta promedioCriticas equals: 9.
+	self assert: alfa promedioCriticas equals: 7.
+	"Si Gamma vuelve a cartel pasa al primer lugar"
+	admin ponerEnCartel: gamma id.
+	self assert: admin peliculasEnCarteleraPorCriticas asArray equals: (Array with: gamma with: beta with: alfa).
+	self deny: (admin peliculasEnCarteleraPorCriticas includes: sinCriticas)</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta5ResumenDeIngresosPorTipoDeCliente">testConsulta5ResumenDeIngresosPorTipoDeCliente
+	"Hoy se vendio: no socios 3000 + 2000, socia ana 800"
+	| r |
+	r := admin resumenIngresosDesde: self hoy hasta: self hoy.
+	self assert: (r at: #ventas) size equals: 3.
+	self assert: (r at: #totalSocios) equals: 800.
+	self assert: (r at: #totalNoSocios) equals: 5000.
+	self assert: (r at: #total) equals: 5800.
+	self assert: (r at: #entradasSocios) equals: 1.
+	self assert: (r at: #entradasNoSocios) equals: 5.
+	self assert: ((r at: #porMedio) at: 'Efectivo') equals: 3000.
+	self assert: ((r at: #porMedio) at: 'Tarjeta') equals: 800.
+	self assert: ((r at: #porMedio) at: 'Transferencia') equals: 2000</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta5RespetaElRangoDeFechas">testConsulta5RespetaElRangoDeFechas
+	| r reserva |
+	r := admin resumenIngresosDesde: (self dia: 1) hasta: (self dia: 5).
+	self assert: (r at: #ventas) isEmpty.
+	self assert: (r at: #total) equals: 0.
+	self assert: (r at: #porMedio) isEmpty.
+	"Manana beto paga su reserva: esa venta es de manana"
+	self ponerReloj: (self dia: 1) hora: (self hora: 12).
+	reserva := (admin reservasDeSocio: beto id) first.
+	admin venderReserva: reserva id medioPago: PagoEfectivo new.
+	r := admin resumenIngresosDesde: (self dia: 1) hasta: (self dia: 5).
+	self assert: (r at: #totalSocios) equals: 1600.
+	self assert: (r at: #entradasSocios) equals: 2.
+	r := admin resumenIngresosDesde: self hoy hasta: (self dia: 1).
+	self assert: (r at: #total) equals: 7400.
+	self assert: (self mensajeDeError: [admin resumenIngresosDesde: (self dia: 1) hasta: self hoy]) contiene: 'anterior a la inicial'</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta6OcupacionPromedioDeCadaPeliculaUObra">testConsulta6OcupacionPromedioDeCadaPeliculaUObra
+	"Cada fila es un Array: obra, cantidad de funciones, porcentaje promedio. De mayor a menor.
+	 Alfa: f1 con 6 de 12 (50%) y f2 con 2 de 2 (100%) = 75%.
+	 Beta: f3 con 1 de 12 (la reserva cancelada no ocupa). Obra: 0%. Gamma no tiene funciones."
+	| filas |
+	filas := admin ocupacionPromedioPorObra.
+	self assert: filas size equals: 3.
+	self assert: (filas at: 1) equals: (Array with: alfa with: 2 with: 75).
+	self assert: (filas at: 2) equals: (Array with: beta with: 1 with: 25 / 3).
+	self assert: (filas at: 3) equals: (Array with: obra with: 1 with: 0).
+	self assert: (UtilCine textoPorcentaje: ((filas at: 2) at: 3)) equals: '8.3 %'</body>
+
+<body package="CineTeatro-Tests" selector="testConsulta7FuncionesAgotadas">testConsulta7FuncionesAgotadas
+	self assert: admin funcionesAgotadas asArray equals: (Array with: f2).
+	"Si se agota otra, aparecen las dos ordenadas por horario"
+	admin venderFuncion: f3 id butacas: #('A2' 'A3' 'A4' 'B1' 'B2' 'B3' 'B4' 'C1' 'C2' 'C3' 'C4') medioPago: PagoEfectivo new socio: nil.
+	self assert: admin funcionesAgotadas asArray equals: (Array with: f3 with: f2)</body>
+
+</methods>
+
+<methods>
+<class-id>ConsultasTest</class-id> <category>consultas extra</category>
+
+<body package="CineTeatro-Tests" selector="testExtraPlanoDeUnaFuncion">testExtraPlanoDeUnaFuncion
+	"Marca con XX las butacas vendidas y las reservadas"
+	| plano |
+	plano := admin planoDeFuncion: f1 id.
+	self assert: plano contiene: ' A   XX XX    XX 04'.
+	self assert: plano contiene: ' B   XX 02    03 04'.
+	self assert: plano contiene: ' C   XX XX    03 04'.
+	"La butaca de la reserva cancelada figura libre"
+	self assert: (admin planoDeFuncion: f3 id) contiene: ' A   XX 02    03 04'.
+	self deberiaFallar: [admin planoDeFuncion: 99]</body>
+
+<body package="CineTeatro-Tests" selector="testExtraRankingPorEntradasVendidas">testExtraRankingPorEntradasVendidas
+	"Cada fila es un Array: obra, entradas vendidas, recaudacion. Las reservas sin pagar no cuentan."
+	| filas |
+	filas := admin rankingObrasPorVentas.
+	self assert: filas size equals: 4.
+	self assert: filas first equals: (Array with: alfa with: 6 with: 5800).
+	self assert: ((filas copyFrom: 2 to: 4) allSatisfy: [:fila | (fila at: 2) = 0 and: [(fila at: 3) = 0]]).
+	"Con una venta, Beta pasa al segundo lugar"
+	admin venderFuncion: f3 id butacas: #('B1') medioPago: PagoEfectivo new socio: nil.
+	self assert: (admin rankingObrasPorVentas at: 2) equals: (Array with: beta with: 1 with: 1000)</body>
+
+<body package="CineTeatro-Tests" selector="testExtraHistorialDeUnSocio">testExtraHistorialDeUnSocio
+	self assert: (admin reservasDeSocio: ana id) size equals: 2.
+	self assert: (admin comprasDeSocio: ana id) size equals: 1.
+	self assert: (admin totalGastadoPorSocio: ana id) equals: 800.
+	self assert: (admin reservasDeSocio: beto id) size equals: 1.
+	self assert: (admin comprasDeSocio: beto id) isEmpty.
+	self assert: (admin totalGastadoPorSocio: beto id) equals: 0</body>
+
+<body package="CineTeatro-Tests" selector="testExtraProximasFuncionesConLugar">testExtraProximasFuncionesConLugar
+	"Las que todavia no empezaron y no estan agotadas (f2 esta agotada)"
+	self assert: admin proximasFuncionesConDisponibilidad asArray equals: (Array with: f1 with: f3 with: f4).
+	self ponerReloj: (self dia: 1) hora: (self hora: 20).
+	self assert: admin proximasFuncionesConDisponibilidad asArray equals: (Array with: f3 with: f4).
+	self ponerReloj: (self dia: 30) hora: (self hora: 0).
+	self assert: admin proximasFuncionesConDisponibilidad isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testExtraParticipacionesDeUnaPersona">testExtraParticipacionesDeUnaPersona
+	| actriz directora |
+	actriz := self persona: 'Actriz'.
+	directora := self persona: 'Directora'.
+	admin agregarAlElenco: actriz id obra: alfa id.
+	admin agregarAlElenco: actriz id obra: obra id.
+	admin modificarObra: beta id titulo: 'Beta' descripcion: '' duracion: 100 clasificacion: 'ATP' director: directora id.
+	self assert: (admin obrasDePersona: actriz id) asArray equals: (Array with: alfa with: obra).
+	self assert: (admin obrasDePersona: directora id) asArray equals: (Array with: beta).
+	self assert: (admin obrasDePersona: (admin personaId: 1) id) isEmpty.
+	self deberiaFallar: [admin obrasDePersona: 99]</body>
+
+<body package="CineTeatro-Tests" selector="testCargarDatosDePrueba">testCargarDatosDePrueba
+	"Reemplaza todo lo que habia por el juego de datos de demostracion (usa la fecha real de hoy)"
+	admin cargarDatosDePrueba.
+	self deny: admin usaRelojSimulado.
+	self assert: admin personas size equals: 18.
+	self assert: admin socios size equals: 6.
+	self assert: admin sociosActivos size equals: 5.
+	self assert: admin criticos size equals: 3.
+	self assert: admin obras size equals: 7.
+	self assert: admin obrasEnCartel size equals: 6.
+	self assert: admin salas size equals: 4.
+	self assert: admin funciones size equals: 14.
+	self assert: admin funcionesFuturas size equals: 8.
+	self assert: admin funcionesAgotadas size equals: 2.
+	self assert: admin todasLasReservas size equals: 9.
+	self assert: admin reservasPendientes size equals: 5.
+	self assert: admin todasLasVentas size equals: 22.
+	"Y queda guardado en disco"
+	self assert: self releer todasLasVentas size equals: 22</body>
+
+</methods>
+
+<class>
+<name>PersistenciaTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>PersistenciaTest</class-id>
+<body>Pruebas de la persistencia con BOSS: cada lista se guarda en su archivo .bos dentro de la carpeta temporal, se vuelve a leer con otro administrador y se compara. Tambien prueba que un archivo ilegible no se pise.</body>
+</comment>
+
+<methods>
+<class-id>PersistenciaTest</class-id> <category>apoyo</category>
+
+<body package="CineTeatro-Tests" selector="archivo:">archivo: unNombre
+	^self carpeta asFilename construct: unNombre , '.bos'</body>
+
+<body package="CineTeatro-Tests" selector="escribirBasuraEn:">escribirBasuraEn: unNombre
+	"Deja el archivo de esa lista con un contenido que BOSS no puede leer"
+	(self archivo: unNombre) writeStream nextPutAll: 'basura'; close</body>
+
+<body package="CineTeatro-Tests" selector="armarEscenario">armarEscenario
+	"Un objeto de cada clase, con todas sus relaciones"
+	| directora actor socio critico peli obra sala funcion reserva tarjeta |
+	directora := self persona: 'Directora'.
+	actor := self persona: 'Actor'.
+	socio := self socio: 'Socia'.
+	critico := self critico: 'critico1'.
+	peli := admin altaPeliculaTitulo: 'Peli' descripcion: 'Una pelicula' duracion: 100 clasificacion: '+13' director: directora id.
+	obra := self obraDeTeatro: 'Obra'.
+	admin agregarAlElenco: actor id obra: peli id.
+	admin registrarCriticaDe: critico id obra: peli id resena: 'Muy buena' puntaje: 9.
+	admin sacarDeCartel: obra id.
+	sala := self salaCine.
+	funcion := admin programarFuncionObra: peli id sala: sala id fecha: (self dia: 5) hora: (self hora: 20 minutos: 30) precio: (UtilCine numeroDesde: '4500,50').
+	reserva := admin reservarSocio: socio id funcion: funcion id butacas: #('A1' 'A2').
+	admin cancelarReserva: (admin reservarSocio: socio id funcion: funcion id butacas: #('C4')) id.
+	tarjeta := PagoTarjeta new tipoTarjeta: #credito; marca: 'VISA'; titular: 'Socia'; ultimosDigitos: '4321'; cuotas: 3; yourself.
+	admin venderReserva: reserva id medioPago: tarjeta.
+	admin venderFuncion: funcion id butacas: #('B1') medioPago: PagoEfectivo new socio: nil.
+	admin darDeBajaSocio: (self socio: 'Ex socio') id</body>
+
+</methods>
+
+<methods>
+<class-id>PersistenciaTest</class-id> <category>guardar y leer</category>
+
+<body package="CineTeatro-Tests" selector="testSeGuardaUnaListaPorArchivo">testSeGuardaUnaListaPorArchivo
+	"La carpeta y los archivos se crean recien con la primera operacion"
+	self deny: self carpeta asFilename exists.
+	self persona: 'Ana'.
+	self assert: self carpeta asFilename exists.
+	#('personas' 'socios' 'criticos' 'obras' 'salas' 'funciones') do: [:nombre | self assert: (self archivo: nombre) exists].
+	self assert: self carpeta asFilename directoryContents size equals: 6</body>
+
+<body package="CineTeatro-Tests" selector="testUnaCarpetaVaciaArrancaSinDatos">testUnaCarpetaVaciaArrancaSinDatos
+	self assert: admin personas isEmpty.
+	self assert: admin socios isEmpty.
+	self assert: admin criticos isEmpty.
+	self assert: admin obras isEmpty.
+	self assert: admin salas isEmpty.
+	self assert: admin funciones isEmpty.
+	self assert: admin listasIlegibles isEmpty.
+	self assert: admin carpetaDatos equals: self carpeta</body>
+
+<body package="CineTeatro-Tests" selector="testCadaOperacionSeGuardaSola">testCadaOperacionSeGuardaSola
+	"No hace falta llamar a guardar: cada alta, baja o modificacion ya lo hace"
+	| p |
+	p := self persona: 'Ana'.
+	self assert: self releer personas size equals: 1.
+	admin modificarPersona: p id nombre: 'Ana Maria' dni: p dni fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: ''.
+	self assert: (self releer personaId: p id) nombre equals: 'Ana Maria'.
+	admin bajaPersona: p id.
+	self assert: self releer personas isEmpty</body>
+
+<body package="CineTeatro-Tests" selector="testPersonasSociosYCriticosVuelvenIguales">testPersonasSociosYCriticosVuelvenIguales
+	| otro p |
+	self armarEscenario.
+	otro := self releer.
+	self assert: otro personas size equals: 5.
+	p := otro personaId: 1.
+	self assert: p nombre equals: 'Directora'.
+	self assert: p dni equals: '20000001'.
+	self assert: p fechaNacimiento equals: (Date newDay: 15 monthNumber: 8 year: 1990).
+	self assert: p sexo equals: 'F'.
+	self assert: p email equals: 'correo@mail.com'.
+	self assert: otro socios size equals: 2.
+	self assert: (otro socioId: 1) estaActivo.
+	self assert: (otro socioId: 1) fechaAlta equals: self hoy.
+	self deny: (otro socioId: 2) estaActivo.
+	self assert: otro criticos size equals: 1.
+	self assert: (otro criticoId: 1) nombreUsuario equals: 'critico1'</body>
+
+<body package="CineTeatro-Tests" selector="testObrasYSalasVuelvenIguales">testObrasYSalasVuelvenIguales
+	| otro peli obra sala |
+	self armarEscenario.
+	otro := self releer.
+	peli := otro obraId: 1.
+	obra := otro obraId: 2.
+	"Cada obra vuelve con su clase: el polimorfismo sigue funcionando"
+	self assert: peli class equals: Pelicula.
+	self assert: obra class equals: ObraTeatro.
+	self assert: peli titulo equals: 'Peli'.
+	self assert: peli duracion equals: 100.
+	self assert: peli director equals: 1.
+	self assert: peli elenco asArray equals: #(2).
+	self assert: peli estaEnCartel.
+	self deny: obra estaEnCartel.
+	self assert: peli criticas size equals: 1.
+	self assert: peli criticas first puntaje equals: 9.
+	self assert: peli criticas first resena equals: 'Muy buena'.
+	sala := otro salaId: 1.
+	self assert: sala nombre equals: 'Sala Cine'.
+	self assert: sala capacidad equals: 12.
+	self assert: sala permitePeliculas.
+	self deny: sala permiteTeatro.
+	self assert: (sala butacaDeCodigo: 'A3') posicionX equals: 4</body>
+
+<body package="CineTeatro-Tests" selector="testFuncionesReservasYVentasVuelvenIguales">testFuncionesReservasYVentasVuelvenIguales
+	"Las reservas y las ventas se guardan dentro de su funcion"
+	| otro f pagada cancelada conTarjeta directa |
+	self armarEscenario.
+	otro := self releer.
+	self assert: otro funciones size equals: 1.
+	f := otro funcionId: 1.
+	self assert: f idObra equals: 1.
+	self assert: f idSala equals: 1.
+	self assert: f fecha equals: (self dia: 5).
+	self assert: f horaInicio equals: (self hora: 20 minutos: 30).
+	self assert: f precioEntrada equals: 9001 / 2.
+	self assert: f duracion equals: 100.
+	self assert: f capacidad equals: 12.
+	self assert: f cantidadOcupadas equals: 3.
+	self assert: f estado equals: #disponible.
+	self assert: otro todasLasReservas size equals: 2.
+	pagada := otro reservaId: 1.
+	cancelada := otro reservaId: 2.
+	self assert: pagada estaConfirmada.
+	self assert: pagada idSocio equals: 1.
+	self assert: pagada textoButacas equals: 'A1 A2'.
+	self assert: pagada precioUnitario equals: 9001 / 2.
+	self assert: pagada fechaReserva equals: self hoy.
+	self assert: cancelada estaCancelada.
+	self assert: cancelada fechaCancelacion equals: self hoy.
+	self assert: otro todasLasVentas size equals: 2.
+	conTarjeta := otro todasLasVentas detect: [:v | v id = 1].
+	directa := otro todasLasVentas detect: [:v | v id = 2].
+	"2 x 4500,50 con 20% de descuento"
+	self assert: conTarjeta monto equals: 72008 / 10.
+	self assert: conTarjeta idReserva equals: 1.
+	self assert: conTarjeta idSocio equals: 1.
+	self assert: conTarjeta medioPago class equals: PagoTarjeta.
+	self assert: conTarjeta medioPago descripcion contiene: '**** 4321 (3 cuota'.
+	self assert: directa monto equals: 9001 / 2.
+	self assert: directa esDirecta.
+	self assert: directa medioPago class equals: PagoEfectivo.
+	self assert: directa textoButacas equals: 'B1'</body>
+
+<body package="CineTeatro-Tests" selector="testSePuedeSeguirTrabajandoDespuesDeReleer">testSePuedeSeguirTrabajandoDespuesDeReleer
+	"Los ids siguen la numeracion y las reglas se siguen cumpliendo con los datos leidos"
+	| otro nueva |
+	self armarEscenario.
+	otro := self releer.
+	self assert: (otro altaPersonaNombre: 'Nueva' dni: '1' fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: '') id equals: 6.
+	self should: [otro reservarSocio: 1 funcion: 1 butacas: #('A1')] raise: ErrorCine.
+	self should: [otro reservarSocio: 2 funcion: 1 butacas: #('B2')] raise: ErrorCine.
+	nueva := otro reservarSocio: 1 funcion: 1 butacas: #('B2').
+	self assert: nueva id equals: 3.
+	self assert: nueva precioUnitario equals: 9001 / 2.
+	self assert: (otro venderReserva: nueva id medioPago: PagoEfectivo new) id equals: 3</body>
+
+</methods>
+
+<methods>
+<class-id>PersistenciaTest</class-id> <category>archivos ilegibles</category>
+
+<body package="CineTeatro-Tests" selector="testUnArchivoIlegibleSeAvisaYNoSePisa">testUnArchivoIlegibleSeAvisaYNoSePisa
+	| otro |
+	self armarEscenario.
+	self escribirBasuraEn: 'funciones'.
+	otro := self releer.
+	"Las demas listas se leen bien; la ilegible queda vacia y anotada"
+	self assert: otro listasIlegibles asArray equals: #(#funciones).
+	self assert: otro funciones isEmpty.
+	self assert: otro personas size equals: 5.
+	self assert: otro avisoListasIlegibles contiene: 'No se pudo leer: funciones.bos'.
+	"Cualquier operacion que quiera guardar falla, y el archivo queda como estaba"
+	self assert: (self mensajeDeError: [otro altaPersonaNombre: 'Nueva' dni: '1' fechaNacimiento: nil sexo: 'F' domicilio: '' email: '' celular: '']) contiene: 'No se pudo leer: funciones.bos'.
+	self assert: (self archivo: 'funciones') fileSize equals: 6.
+	"El cambio que no se pudo guardar se descarta de la memoria"
+	self assert: otro personas size equals: 5.
+	"Las consultas siguen funcionando"
+	self assert: otro sociosActivos size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testAlQuitarElArchivoIlegibleSeVuelveATrabajar">testAlQuitarElArchivoIlegibleSeVuelveATrabajar
+	| otro |
+	self persona: 'Ana'.
+	self escribirBasuraEn: 'salas'.
+	otro := self releer.
+	self deny: otro listasIlegibles isEmpty.
+	(self archivo: 'salas') delete.
+	otro cargar.
+	self assert: otro listasIlegibles isEmpty.
+	self assert: otro avisoListasIlegibles equals: ''.
+	otro altaSalaNombre: 'Sala' filas: 1 butacasPorFila: 1 permitePeliculas: true permiteTeatro: false.
+	self assert: self releer salas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testUnArchivoQueNoContieneUnaListaEsIlegible">testUnArchivoQueNoContieneUnaListaEsIlegible
+	"Un archivo BOSS valido pero con otra cosa adentro tampoco se acepta"
+	| bos otro |
+	self persona: 'Ana'.
+	bos := BinaryObjectStorage onNew: (self archivo: 'socios') writeStream.
+	[bos nextPut: 'esto no es una lista'] ensure: [bos close].
+	otro := self releer.
+	self assert: otro listasIlegibles asArray equals: #(#socios).
+	self assert: otro socios isEmpty.
+	self assert: otro personas size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testCargarDatosDePruebaReparaUnaCarpetaConArchivosIlegibles">testCargarDatosDePruebaReparaUnaCarpetaConArchivosIlegibles
+	"Es la salida para empezar de cero: reemplaza todos los archivos"
+	| otro |
+	self persona: 'Ana'.
+	self escribirBasuraEn: 'personas'.
+	otro := self releer.
+	self deny: otro listasIlegibles isEmpty.
+	otro cargarDatosDePrueba.
+	self assert: otro listasIlegibles isEmpty.
+	self assert: self releer personas size equals: 18.
+	self assert: self releer listasIlegibles isEmpty</body>
+
+</methods>
+
 </st-source>

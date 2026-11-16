@@ -2047,9 +2047,14 @@
 					e return: nil]]]</body>
 
 <body package="CineTeatro" selector="leerListaDe:">leerListaDe: unArchivo
-	| bos lista |
-	bos := BinaryObjectStorage onOldNoScan: unArchivo readStream.
-	[lista := bos next] ensure: [bos close].
+	"El ensure: cierra el archivo pase lo que pase. Si no es un archivo BOSS valido, el error
+	 salta al crear bos: en ese caso hay que cerrar el stream a mano, o el archivo queda
+	 tomado y no se puede borrar ni reemplazar."
+	| stream bos lista |
+	stream := unArchivo readStream.
+	[bos := BinaryObjectStorage onOldNoScan: stream.
+	lista := bos next]
+		ensure: [bos isNil ifTrue: [stream close] ifFalse: [bos close]].
 	(lista isKindOf: OrderedCollection) ifFalse: [^self error: 'el archivo no contiene una lista'].
 	^lista</body>
 
