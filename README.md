@@ -1,15 +1,20 @@
 # Proyecto Paradigmas de Programación 2025 – Gestión de un Cine/Teatro
 
-Implementado en **Smalltalk (VisualWorks 8.2)**. Es un solo paquete: `CineTeatro`.
+Implementado en **Smalltalk (VisualWorks 8.2)**. El sistema es un solo paquete, `CineTeatro`; las pruebas automáticas están en otro, `CineTeatro-Tests`.
 
-![Pantalla principal](docs/capturas/pantalla-principal.jpg)
+![Pantalla principal](docs/capturas/pantalla-principal.png)
+
+> **Para estudiar el código y preparar la defensa: [docs/GUIA.md](docs/GUIA.md).** Explica la sintaxis, cada clase, qué pasa al apretar cada botón, la persistencia, la interfaz y las preguntas típicas.
 
 ## Contenido del repositorio
 
 | Archivo | Qué es |
 |---|---|
-| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 21 clases, unos 485 métodos |
+| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 21 clases, 511 métodos |
+| `src/CineTeatro-Tests.st` | Pruebas automáticas con SUnitToo: 199 pruebas en 8 clases |
+| `tests/correr-pruebas.st` | Script que carga todo en una imagen limpia, corre las pruebas y escribe `tests/resultado.txt` |
 | `datosCine/*.bos` | Datos de prueba ya cargados, una lista por archivo (personas, socios, criticos, obras, salas, funciones) |
+| `docs/GUIA.md` | Guía para entender el código |
 | `docs/capturas/` | Capturas del sistema funcionando |
 
 ## Cómo cargarlo y abrirlo
@@ -31,6 +36,42 @@ Implementado en **Smalltalk (VisualWorks 8.2)**. Es un solo paquete: `CineTeatro
 
 Todos los cambios se graban solos en disco después de cada operación.
 
+La ventana mide 1122 × 660: entra en una pantalla de 1366 × 768. Se puede agrandar o maximizar; el panel de resultados crece con ella.
+
+## Cómo correr las pruebas
+
+Desde PowerShell, parado en la carpeta del repositorio (no abre ninguna ventana; tarda alrededor de un minuto):
+
+```powershell
+$env:VISUALWORKS = 'C:\Program Files (x86)\Cincom\vw8.2pul'
+Copy-Item "$env:VISUALWORKS\image\visualnc64.im" trabajo.im
+& "$env:VISUALWORKS\bin\win64\vwntconsole.exe" trabajo.im -nogui -filein tests\correr-pruebas.st
+Get-Content tests\resultado.txt
+```
+
+Ajustá la primera línea si VisualWorks está instalado en otra carpeta. El script carga SUnitToo, `CineTeatro.st` y `CineTeatro-Tests.st` en una copia limpia de la imagen (`trabajo.im`, que git ignora), verifica que **todos los métodos compilen** y que no queden variables sin declarar, y corre las pruebas. El final de `tests/resultado.txt` tiene que decir:
+
+```
+TOTAL: 199 pruebas, 199 pasaron, 0 fallaron, 0 con error
+
+RESULTADO: TODAS LAS PRUEBAS PASARON
+```
+
+Las pruebas trabajan en una carpeta temporal (`pruebasCineTmp`) y con el reloj simulado: **no tocan `datosCine`**. Los mensajes `No se pudo leer pruebasCineTmp\...` que aparecen en la consola son de las pruebas que dañan un archivo a propósito.
+
+| Clase de pruebas | Cantidad | Qué cubre |
+|---|---|---|
+| `UtilCineTest` | 16 | Conversión de fechas, horas e importes; formatos |
+| `PersonasTest` | 20 | Altas, bajas y modificaciones de personas, socios y críticos |
+| `ObrasSalasTest` | 17 | Altas, bajas y modificaciones de películas, obras y salas; elenco; cartel |
+| `FuncionesTest` | 15 | Programación de funciones y superposición de horarios (incluida la medianoche) |
+| `ReservasVentasTest` | 24 | Reglas de reserva, 24 horas, función agotada, descuento, medios de pago |
+| `ConsultasTest` | 16 | Las 7 consultas pedidas y las 5 agregadas |
+| `PersistenciaTest` | 11 | Guardar, releer y archivos dañados |
+| `VentanaCineTest` | 80 | Los 51 botones de la interfaz, con errores y cancelaciones (con diálogos simulados, sin abrir ventanas) |
+
+Para cargarlas y correrlas desde adentro de VisualWorks, ver la [guía](docs/GUIA.md#7-las-pruebas-automáticas).
+
 ## Diseño
 
 ### Clases
@@ -44,12 +85,27 @@ Todos los cambios se graban solos en disco después de cada operación.
 | `ObraArtistica` (abstracta) → `Pelicula`, `ObraTeatro` | Se dividió como sugiere el enunciado. **Polimorfismo**: `tipo`, `puedePresentarseEn: unaSala`, `admiteCriticas`, `agregarCritica:` |
 | `Sala` / `Butaca` | La sala genera sus butacas (fila letra + número, con posición X/Y y pasillo central) y dibuja su plano |
 | `Funcion` | Obra + sala + fecha + hora + precio, con `listaReservas` y `listaVentas`. Calcula ocupación y superposición de horarios, y pasa a **#agotada** sola |
-| `Reserva` | Estados #pendiente / #confirmada / #cancelada; regla de las 24 hs |
+| `Reserva` | Estados #pendiente / #confirmada / #cancelada; regla de las 24 hs; guarda el precio de la entrada al momento de reservar |
 | `Venta` | Directa (idReserva = nil) o desde una reserva; idSocio = nil si el comprador no es socio |
 | `MedioPago` (abstracta) → `PagoEfectivo`, `PagoTarjeta`, `PagoTransferencia` | Datos específicos de cada medio (tarjeta: tipo, marca, últimos 4, cuotas, titular; transferencia: alias y número de operación) |
 | `UtilCine` | Formatos y conversiones (fechas dd/mm/aaaa, horas hh:mm, moneda $ 1.234,50) |
-| `ErrorCine` | Errores de negocio. La interfaz los muestra como aviso |
+| `ErrorCine` / `AccionCancelada` | Errores de negocio (la interfaz los muestra como aviso) y cancelación de un diálogo (la acción se abandona sin cambiar nada) |
 | `VentanaCine` | Interfaz gráfica (ApplicationModel): botones por módulo, diálogos para cargar datos y panel de resultados |
+
+### Operaciones de gestión
+
+| Módulo | Alta | Modificación | Baja | Listado |
+|---|---|---|---|---|
+| Personas | sí | todos los datos, de a uno (el DNI no se puede repetir) | solo si no es ni fue socio, no es crítico y no participa en ninguna obra | sí, con el rol de cada una |
+| Socios | sí | — | baja lógica (queda inactivo) y reactivación | sí |
+| Críticos | sí | — | solo si no tiene críticas | sí |
+| Críticas | sí (una por crítico y película) | registrar otra la reemplaza | sí | junto con las películas |
+| Películas y obras | sí | título, descripción, duración, clasificación, director; elenco (agregar y quitar); poner y sacar de cartel | solo si no tiene funciones | sí |
+| Salas | sí | nombre, butacas y tipos de obra | solo si no tiene funciones | sí, con el plano |
+| Funciones | sí | precio | solo si no tiene reservas ni ventas | sí |
+| Reservas | sí | — | cancelación (queda registrada) | sí |
+
+Las bajas son restrictivas a propósito: nunca queda un id apuntando a algo que ya no existe.
 
 ### Decisiones y adaptaciones respecto del enunciado
 - **Persistencia**: cada lista se guarda en su propio archivo con **BOSS** (`BinaryObjectStorage`), en la carpeta `datosCine`. Las reservas y ventas se guardan dentro de cada función (`listaReservas` / `listaVentas`), como pide la clase Función, para no duplicar datos.
@@ -67,7 +123,9 @@ Todos los cambios se graban solos en disco después de cada operación.
 - Pagar una reserva genera la venta con las mismas butacas y deja la reserva **confirmada**.
 - Una función no supera la capacidad de la sala. Con todas las butacas reservadas o vendidas pasa a **agotada**.
 - Solo se programan funciones de obras **en cartel**, en salas que admiten ese tipo de obra, en el futuro y **sin superponerse** con otra función de la sala.
-- El **precio** de una función no se puede cambiar mientras tenga reservas pendientes de pago: se reservaron al precio vigente.
+- Cada reserva guarda el **precio** de la entrada al momento de reservar y se cobra a ese precio: cambiar el precio de una función solo afecta a las reservas y ventas siguientes.
+- Una función con reservas (aunque estén canceladas) o ventas **no se puede eliminar**; tampoco una sala o una obra con funciones.
+- No se puede cambiar la duración de una obra, ni las butacas de una sala, si eso afectaría funciones ya programadas.
 - Solo las **películas** reciben críticas (una por crítico; si repite, se reemplaza).
 - En los diálogos, **Cancelar** cancela toda la acción, también en los campos opcionales (no borra el dato que había).
 - Validaciones: DNI único y numérico, butacas existentes, libres y no repetidas, fechas y horas válidas, etc.
@@ -111,9 +169,9 @@ Casos para mostrar:
 
 | | |
 |---|---|
-| ![Plano de la sala](docs/capturas/plano-sala.jpg) Plano de la sala al reservar | ![Venta con descuento](docs/capturas/venta-con-descuento.jpg) Venta de socio con 20% de descuento |
-| ![Reservas impagas](docs/capturas/reservas-impagas.jpg) Consulta 3: reservas pendientes de pago | ![Regla de 24 horas](docs/capturas/regla-24-horas.jpg) Aviso de la regla de las 24 horas |
-| ![Ranking de ventas](docs/capturas/ranking-ventas.jpg) Consulta extra: ranking de ventas | |
+| ![Plano de la sala](docs/capturas/plano-sala.png) Plano de la sala al reservar | ![Venta con descuento](docs/capturas/venta-con-descuento.png) Venta directa a un socio, con 20% de descuento |
+| ![Reservas impagas](docs/capturas/reservas-impagas.png) Consulta 3: reservas pendientes de pago | ![Resumen de ingresos](docs/capturas/resumen-ingresos.png) Consulta 5: resumen de ingresos |
+| ![Ranking de ventas](docs/capturas/ranking-ventas.png) Consulta extra: ranking de ventas | |
 
 ## Guion corto para la demostración
 1. **Cargar datos de prueba** → **Listar funciones**.
