@@ -275,7 +275,7 @@
 <super>Core.Object</super>
 <private>false</private>
 <indexed-type>none</indexed-type>
-<inst-vars>id idSocio idFuncion listaButacasReservadas fechaReserva fechaCancelacion estado</inst-vars>
+<inst-vars>id idSocio idFuncion listaButacasReservadas fechaReserva fechaCancelacion estado precioUnitario</inst-vars>
 <class-inst-vars></class-inst-vars>
 <imports></imports>
 <category>CineTeatro</category>
@@ -286,7 +286,7 @@
 
 <comment>
 <class-id>Reserva</class-id>
-<body>Reserva sin pago de butacas numeradas a nombre de un socio. estado #pendiente / #confirmada (se compraron las entradas) / #cancelada.</body>
+<body>Reserva sin pago de butacas numeradas a nombre de un socio. estado #pendiente / #confirmada (se compraron las entradas) / #cancelada. precioUnitario es el precio de la entrada en el momento de reservar: es el que se cobra al pagarla, aunque despues cambie el precio de la funcion.</body>
 </comment>
 
 <class>
@@ -1550,6 +1550,12 @@
 <body package="CineTeatro" selector="fechaCancelacion:">fechaCancelacion: unFechaCancelacion
 	fechaCancelacion := unFechaCancelacion</body>
 
+<body package="CineTeatro" selector="precioUnitario">precioUnitario
+	^precioUnitario</body>
+
+<body package="CineTeatro" selector="precioUnitario:">precioUnitario: unPrecio
+	precioUnitario := unPrecio</body>
+
 <body package="CineTeatro" selector="estado">estado
 	^estado</body>
 
@@ -1586,7 +1592,8 @@
 	listaButacasReservadas := OrderedCollection new.
 	fechaReserva := nil.
 	fechaCancelacion := nil.
-	estado := #pendiente</body>
+	estado := #pendiente.
+	precioUnitario := 0</body>
 
 </methods>
 
@@ -1620,6 +1627,10 @@
 
 <body package="CineTeatro" selector="cantidadButacas">cantidadButacas
 	^listaButacasReservadas size</body>
+
+<body package="CineTeatro" selector="importeBruto">importeBruto
+	"Lo que valen las butacas reservadas al precio del dia de la reserva, sin descuentos"
+	^precioUnitario * self cantidadButacas</body>
 
 <body package="CineTeatro" selector="textoButacas">textoButacas
 	| ws |
@@ -2415,12 +2426,11 @@
 	^funcion</body>
 
 <body package="CineTeatro" selector="modificarPrecio:funcion:">modificarPrecio: unPrecio funcion: unIdFuncion
-	"No se cambia el precio mientras haya reservas pendientes de pago: esas butacas se
-	 reservaron al precio vigente y el socio debe pagar ese importe."
+	"Cambia el precio para las ventas y reservas que se hagan de ahora en mas.
+	 Las reservas ya hechas no cambian: cada una guarda el precio al que se reservo."
 	| funcion |
 	funcion := self funcionId: unIdFuncion.
 	unPrecio &gt; 0 ifFalse: [^self fallar: 'El precio debe ser mayor a cero'].
-	funcion reservasPendientes isEmpty ifFalse: [^self fallar: 'No se puede cambiar el precio: la funcion tiene ' , funcion reservasPendientes size printString , ' reserva/s pendiente/s de pago hecha/s al precio actual. Cobrelas o cancelelas primero'].
 	funcion precioEntrada: unPrecio.
 	self guardar.
 	^funcion</body>
@@ -2475,6 +2485,7 @@
 		idFuncion: unIdFuncion;
 		listaButacasReservadas: butacas;
 		fechaReserva: self hoy;
+		precioUnitario: funcion precioEntrada;
 		yourself.
 	funcion agregarReserva: reserva.
 	self guardar.
@@ -2513,8 +2524,13 @@
 	monto := unSocioOrNil isNil ifTrue: [bruto] ifFalse: [unSocioOrNil aplicarDescuentoA: bruto].
 	^(monto * 100) rounded / 100</body>
 
+<body package="CineTeatro" selector="montoDeReserva:">montoDeReserva: unaReserva
+	"Lo que el socio paga (o debe) por una reserva: el precio del dia en que reservo, con su descuento"
+	^self calcularMontoPrecio: unaReserva precioUnitario cantidad: unaReserva cantidadButacas socio: (self socioId: unaReserva idSocio)</body>
+
 <body package="CineTeatro" selector="venderReserva:medioPago:">venderReserva: unIdReserva medioPago: unMedioPago
-	"Venta en base a una reserva: se venden las mismas butacas y la reserva queda confirmada"
+	"Venta en base a una reserva: se venden las mismas butacas, al precio que tenia la entrada
+	 cuando se reservo, y la reserva queda confirmada"
 	| reserva funcion socio venta |
 	reserva := self reservaId: unIdReserva.
 	reserva estaPendiente ifFalse: [^self fallar: 'La reserva no esta pendiente de pago (esta ' , reserva estado , ')'].
@@ -2529,7 +2545,7 @@
 		hora: self horaActual;
 		medioPago: unMedioPago;
 		butacasVendidas: reserva listaButacasReservadas copy;
-		monto: (self calcularMontoPrecio: funcion precioEntrada cantidad: reserva cantidadButacas socio: socio);
+		monto: (self montoDeReserva: reserva);
 		yourself.
 	reserva confirmar.
 	funcion agregarVenta: venta.
@@ -3462,7 +3478,7 @@
 		f := self elegirFuncion: 'Funcion' entre: admin proximasFuncionesConDisponibilidad.
 		self mostrar: (admin descripcionFuncion: f) , (String with: Character cr with: Character cr) , (admin planoDeFuncion: f id).
 		r := admin reservarSocio: s id funcion: f id butacas: (self pedirButacas: 'Butacas a reservar').
-		self mostrar: 'Reserva #' , r id printString , ' registrada a nombre de ' , (admin nombreDeSocio: s id) , ' (pendiente de pago)' , (String with: Character cr) , 'Butacas: ' , r textoButacas , '   A pagar: ' , (UtilCine textoMoneda: (admin calcularMontoPrecio: f precioEntrada cantidad: r cantidadButacas socio: s)) , (String with: Character cr with: Character cr) , (admin planoDeFuncion: f id)]</body>
+		self mostrar: 'Reserva #' , r id printString , ' registrada a nombre de ' , (admin nombreDeSocio: s id) , ' (pendiente de pago)' , (String with: Character cr) , 'Butacas: ' , r textoButacas , '   A pagar: ' , (UtilCine textoMoneda: (admin montoDeReserva: r)) , (String with: Character cr with: Character cr) , (admin planoDeFuncion: f id)]</body>
 
 <body package="CineTeatro" selector="cancelarReserva">cancelarReserva
 	self ejecutar: [| r |
@@ -3576,7 +3592,7 @@
 			ws cr; nextPutAll: (self descripcionSocio: socio) , ' | DNI ' , p dni , ' | Cel ' , p celular , ' | ' , p email; cr.
 			par value do: [:r | | f |
 				f := admin funcionId: r idFuncion.
-				ws nextPutAll: '   Reserva #' , r id printString , ' butacas ' , r textoButacas , ' | a pagar ' , (UtilCine textoMoneda: (admin calcularMontoPrecio: f precioEntrada cantidad: r cantidadButacas socio: socio)).
+				ws nextPutAll: '   Reserva #' , r id printString , ' butacas ' , r textoButacas , ' | a pagar ' , (UtilCine textoMoneda: (admin montoDeReserva: r)).
 				ws nextPutAll: ((admin esCancelable: r) ifTrue: [' | aun cancelable'] ifFalse: [' | YA NO SE PUEDE ANULAR: DEBE PAGARLA']); cr.
 				ws nextPutAll: '      funcion ' , (admin descripcionFuncion: f); cr]].
 		self mostrar: ws contents]</body>
