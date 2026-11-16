@@ -286,7 +286,87 @@
 
 <comment>
 <class-id>Reserva</class-id>
-<body>Reserva sin pago de butacas numeradas a nombre de un socio. estado #pendiente / #confirmada (se compraron las entradas) / #cancelada. precioUnitario es el precio de la entrada en el momento de reservar: es el que se cobra al pagarla, aunque despues cambie el precio de la funcion.</body>
+<body>Reserva sin pago de butacas numeradas a nombre de un socio. Su estado es un objeto (patron State): ReservaPendiente, ReservaConfirmada (se compraron las entradas) o ReservaCancelada; la reserva le delega todo lo que depende del estado. precioUnitario es el precio de la entrada en el momento de reservar: es el que se cobra al pagarla, aunque despues cambie el precio de la funcion.</body>
+</comment>
+
+<class>
+<name>EstadoReserva</name>
+<environment>Smalltalk</environment>
+<super>Core.Object</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro</category>
+<attributes>
+<package>CineTeatro</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>EstadoReserva</class-id>
+<body>Clase abstracta de los estados de una Reserva (patron State). Aca esta el comportamiento por defecto: no es ningun estado en particular, las butacas siguen ocupadas y no se puede ni pagar ni cancelar. Cada subclase redefine solo lo que en ese estado es distinto. Los estados no tienen datos propios.</body>
+</comment>
+
+<class>
+<name>ReservaPendiente</name>
+<environment>Smalltalk</environment>
+<super>EstadoReserva</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro</category>
+<attributes>
+<package>CineTeatro</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>ReservaPendiente</class-id>
+<body>Estado inicial de una reserva: todavia no se pago. Es el unico desde el que se puede pagar (pasa a ReservaConfirmada) o cancelar (pasa a ReservaCancelada, si falta el tiempo suficiente para la funcion).</body>
+</comment>
+
+<class>
+<name>ReservaConfirmada</name>
+<environment>Smalltalk</environment>
+<super>EstadoReserva</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro</category>
+<attributes>
+<package>CineTeatro</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>ReservaConfirmada</class-id>
+<body>La reserva se pago: ya hay una venta por esas butacas. Es un estado final.</body>
+</comment>
+
+<class>
+<name>ReservaCancelada</name>
+<environment>Smalltalk</environment>
+<super>EstadoReserva</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars></inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro</category>
+<attributes>
+<package>CineTeatro</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>ReservaCancelada</class-id>
+<body>La reserva se anulo a tiempo: sus butacas quedaron libres. Es un estado final.</body>
 </comment>
 
 <class>
@@ -1450,8 +1530,8 @@
 <class-id>Funcion</class-id> <category>ocupacion</category>
 
 <body package="CineTeatro" selector="reservasActivas">reservasActivas
-	"Reservas pendientes o confirmadas (no canceladas)"
-	^listaReservas reject: [:r | r estaCancelada]</body>
+	"Reservas que siguen ocupando sus butacas: pendientes o confirmadas (no las canceladas)"
+	^listaReservas select: [:r | r ocupaButacas]</body>
 
 <body package="CineTeatro" selector="reservasPendientes">reservasPendientes
 	^listaReservas select: [:r | r estaPendiente]</body>
@@ -1599,7 +1679,7 @@
 	listaButacasReservadas := OrderedCollection new.
 	fechaReserva := nil.
 	fechaCancelacion := nil.
-	estado := #pendiente.
+	estado := ReservaPendiente new.
 	precioUnitario := 0</body>
 
 </methods>
@@ -1608,24 +1688,33 @@
 <class-id>Reserva</class-id> <category>estado</category>
 
 <body package="CineTeatro" selector="estaPendiente">estaPendiente
-	^estado = #pendiente</body>
+	^estado estaPendiente</body>
 
 <body package="CineTeatro" selector="estaConfirmada">estaConfirmada
-	^estado = #confirmada</body>
+	^estado estaConfirmada</body>
 
 <body package="CineTeatro" selector="estaCancelada">estaCancelada
-	^estado = #cancelada</body>
+	^estado estaCancelada</body>
 
 <body package="CineTeatro" selector="confirmar">confirmar
-	estado := #confirmada</body>
-
-<body package="CineTeatro" selector="cancelarEl:">cancelarEl: unaFecha
-	estado := #cancelada.
-	fechaCancelacion := unaFecha</body>
+	"Se pago la reserva. Que pasa depende del estado: solo una pendiente se puede pagar"
+	estado confirmar: self</body>
 
 <body package="CineTeatro" selector="puedeCancelarseFaltando:">puedeCancelarseFaltando: segundosHastaFuncion
-	"Sin costo solo si falta al menos el limite de horas para la funcion"
-	^self estaPendiente and: [segundosHastaFuncion &gt;= (self class horasLimiteCancelacion * 3600)]</body>
+	"Se puede anular sin costo si faltan esos segundos para la funcion?"
+	^estado puedeCancelarseFaltando: segundosHastaFuncion</body>
+
+<body package="CineTeatro" selector="">cancelarEl: unaFecha faltando: segundosHastaFuncion
+	"Anula la reserva. Que pasa depende del estado: solo una pendiente, y a tiempo, se puede anular"
+	estado cancelar: self el: unaFecha faltando: segundosHastaFuncion</body>
+
+<body package="CineTeatro" selector="">ocupaButacas
+	"Las butacas reservadas siguen tomadas? (una reserva cancelada las libera)"
+	^estado ocupaButacas</body>
+
+<body package="CineTeatro" selector="">nombreEstado
+	"'pendiente', 'confirmada' o 'cancelada'"
+	^estado nombre</body>
 
 </methods>
 
@@ -1651,7 +1740,120 @@
 <class-id>Reserva</class-id> <category>printing</category>
 
 <body package="CineTeatro" selector="printOn:">printOn: aStream
-	aStream nextPutAll: 'Reserva #' , id printString , ' [' , estado , '] butacas: ' , self textoButacas</body>
+	aStream nextPutAll: 'Reserva #' , id printString , ' [' , self nombreEstado , '] butacas: ' , self textoButacas</body>
+
+</methods>
+
+<methods>
+<class-id>EstadoReserva</class-id> <category>consultas</category>
+
+<body package="CineTeatro" selector="">nombre
+	"El nombre que se muestra: 'pendiente', 'confirmada' o 'cancelada'"
+	^self subclassResponsibility</body>
+
+<body package="CineTeatro" selector="">estaPendiente
+	^false</body>
+
+<body package="CineTeatro" selector="">estaConfirmada
+	^false</body>
+
+<body package="CineTeatro" selector="">estaCancelada
+	^false</body>
+
+<body package="CineTeatro" selector="">ocupaButacas
+	"Las butacas de la reserva siguen tomadas? Si, salvo que este cancelada"
+	^true</body>
+
+<body package="CineTeatro" selector="">puedeCancelarseFaltando: segundosHastaFuncion
+	"Solo una reserva pendiente se puede cancelar"
+	^false</body>
+
+</methods>
+
+<methods>
+<class-id>EstadoReserva</class-id> <category>cambios de estado</category>
+
+<body package="CineTeatro" selector="">confirmar: unaReserva
+	"Pagar la reserva. Por defecto no se puede: solo ReservaPendiente lo redefine"
+	^ErrorCine new raiseSignal: 'La reserva no esta pendiente de pago (esta ' , self nombre , ')'</body>
+
+<body package="CineTeatro" selector="">cancelar: unaReserva el: unaFecha faltando: segundosHastaFuncion
+	"Anular la reserva. Por defecto no se puede: solo ReservaPendiente lo redefine"
+	^ErrorCine new raiseSignal: 'Solo se pueden cancelar reservas pendientes (la reserva esta ' , self nombre , ')'</body>
+
+</methods>
+
+<methods>
+<class-id>EstadoReserva</class-id> <category>comparing</category>
+
+<body package="CineTeatro" selector="">= otroEstado
+	"Los estados no tienen datos: dos estados son iguales si son de la misma clase"
+	^self class == otroEstado class</body>
+
+<body package="CineTeatro" selector="">hash
+	^self class hash</body>
+
+</methods>
+
+<methods>
+<class-id>EstadoReserva</class-id> <category>printing</category>
+
+<body package="CineTeatro" selector="">printOn: aStream
+	aStream nextPutAll: self nombre</body>
+
+</methods>
+
+<methods>
+<class-id>ReservaPendiente</class-id> <category>consultas</category>
+
+<body package="CineTeatro" selector="">nombre
+	^'pendiente'</body>
+
+<body package="CineTeatro" selector="">estaPendiente
+	^true</body>
+
+<body package="CineTeatro" selector="">puedeCancelarseFaltando: segundosHastaFuncion
+	"Sin costo solo si falta al menos el limite de horas para la funcion"
+	^segundosHastaFuncion &gt;= (Reserva horasLimiteCancelacion * 3600)</body>
+
+</methods>
+
+<methods>
+<class-id>ReservaPendiente</class-id> <category>cambios de estado</category>
+
+<body package="CineTeatro" selector="">confirmar: unaReserva
+	unaReserva estado: ReservaConfirmada new</body>
+
+<body package="CineTeatro" selector="">cancelar: unaReserva el: unaFecha faltando: segundosHastaFuncion
+	(self puedeCancelarseFaltando: segundosHastaFuncion) ifFalse: [
+		^ErrorCine new raiseSignal: 'Faltan menos de ' , Reserva horasLimiteCancelacion printString , ' horas para la funcion: la reserva ya no se puede anular y el socio debe pagarla'].
+	unaReserva estado: ReservaCancelada new.
+	unaReserva fechaCancelacion: unaFecha</body>
+
+</methods>
+
+<methods>
+<class-id>ReservaConfirmada</class-id> <category>consultas</category>
+
+<body package="CineTeatro" selector="">nombre
+	^'confirmada'</body>
+
+<body package="CineTeatro" selector="">estaConfirmada
+	^true</body>
+
+</methods>
+
+<methods>
+<class-id>ReservaCancelada</class-id> <category>consultas</category>
+
+<body package="CineTeatro" selector="">nombre
+	^'cancelada'</body>
+
+<body package="CineTeatro" selector="">estaCancelada
+	^true</body>
+
+<body package="CineTeatro" selector="">ocupaButacas
+	^false</body>
 
 </methods>
 
@@ -2590,14 +2792,12 @@
 	^reserva</body>
 
 <body package="CineTeatro" selector="cancelarReserva:">cancelarReserva: unIdReserva
-	"Se puede cancelar sin costo hasta 24 hs antes; despues ya no se anula y el socio debe pagarla"
+	"Se puede cancelar sin costo hasta 24 hs antes; despues ya no se anula y el socio debe pagarla.
+	 La regla la aplica el estado de la reserva (ver ReservaPendiente&gt;&gt;cancelar:el:faltando:)"
 	| reserva funcion |
 	reserva := self reservaId: unIdReserva.
-	reserva estaPendiente ifFalse: [^self fallar: 'Solo se pueden cancelar reservas pendientes (la reserva esta ' , reserva estado , ')'].
 	funcion := self funcionId: reserva idFuncion.
-	(reserva puedeCancelarseFaltando: (funcion segundosHastaInicioDesde: self ahoraEnSegundos))
-		ifFalse: [^self fallar: 'Faltan menos de ' , Reserva horasLimiteCancelacion printString , ' horas para la funcion: la reserva ya no se puede anular y el socio debe pagarla'].
-	reserva cancelarEl: self hoy.
+	reserva cancelarEl: self hoy faltando: (funcion segundosHastaInicioDesde: self ahoraEnSegundos).
 	funcion actualizarEstado.
 	self guardar.
 	^reserva</body>
@@ -2631,7 +2831,6 @@
 	 cuando se reservo, y la reserva queda confirmada"
 	| reserva funcion socio venta |
 	reserva := self reservaId: unIdReserva.
-	reserva estaPendiente ifFalse: [^self fallar: 'La reserva no esta pendiente de pago (esta ' , reserva estado , ')'].
 	funcion := self funcionId: reserva idFuncion.
 	socio := self socioId: reserva idSocio.
 	venta := Venta new
@@ -3306,7 +3505,7 @@
 <body package="CineTeatro" selector="descripcionReserva:">descripcionReserva: unaReserva
 	| funcion |
 	funcion := admin funcionId: unaReserva idFuncion.
-	^'Reserva #' , unaReserva id printString , ' | ' , (admin nombreDeSocio: unaReserva idSocio) , ' | ' , unaReserva textoButacas , ' | funcion ' , (admin descripcionCortaFuncion: funcion) , ' | ' , unaReserva estado</body>
+	^'Reserva #' , unaReserva id printString , ' | ' , (admin nombreDeSocio: unaReserva idSocio) , ' | ' , unaReserva textoButacas , ' | funcion ' , (admin descripcionCortaFuncion: funcion) , ' | ' , unaReserva nombreEstado</body>
 
 <body package="CineTeatro" selector="roles:">roles: unaPersona
 	| roles |
