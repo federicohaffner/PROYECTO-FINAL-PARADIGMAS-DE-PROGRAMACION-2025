@@ -234,7 +234,17 @@ classDiagram
     class Reserva {
         estado
         precioUnitario
+        confirmar()
+        cancelarEl()
     }
+    class EstadoReserva {
+        <<abstracta>>
+        confirmar()
+        cancelar()
+    }
+    class ReservaPendiente
+    class ReservaConfirmada
+    class ReservaCancelada
     class Venta {
         monto
     }
@@ -263,6 +273,10 @@ classDiagram
     Sala *-- Butaca
     Funcion *-- Reserva
     Funcion *-- Venta
+    Reserva *-- EstadoReserva : estado
+    EstadoReserva <|-- ReservaPendiente
+    EstadoReserva <|-- ReservaConfirmada
+    EstadoReserva <|-- ReservaCancelada
     Venta --> MedioPago
     MedioPago <|-- PagoEfectivo
     MedioPago <|-- PagoTarjeta
@@ -286,7 +300,7 @@ Son tres capas:
 |---|---|---|
 | Interfaz | `VentanaCine` | Botones, diálogos, armar los textos que se muestran. **No tiene reglas de negocio** |
 | Coordinación | `AdministradorCine` | Las listas, las validaciones, las operaciones, las consultas, guardar y leer |
-| Dominio | `Persona`, `Socio`, `Funcion`, `Reserva`... | Sus datos y lo que cada una sabe calcular sobre sí misma |
+| Dominio | `Persona`, `Socio`, `Funcion`, `Reserva`... | Sus datos y **las reglas que dependen de esos datos** |
 
 ---
 
@@ -336,6 +350,8 @@ siguienteIdEn: unaColeccion
 
 - `fallar:` corta la operación con un error de negocio. Como está **antes** de modificar y de `self guardar`, si algo falla no se cambia nada.
 - `personaId:`, `socioId:`, `salaId:`, `funcionId:`... son todos una línea que llama a `buscar:en:nombre:`.
+
+**En las reservas y las ventas el administrador solo coordina.** Busca los objetos por id, calcula el número de la nueva reserva o venta, le pasa a la función la fecha y la hora, y guarda. Las reglas las aplica quien tiene los datos para hacerlo (principio **Experto**): la sala sabe qué butacas existen, la función sabe cuáles están libres y si ya empezó, la reserva sabe cuánto vale y en qué estado está, el medio de pago sabe si sus datos están completos. Se ve entero en la [sección 4](#4-recorridos-paso-a-paso).
 
 **El reloj.** Nadie en el sistema usa `Date today` directamente: todos preguntan `self hoy` y `self horaActual`. Así se puede "mentir" la fecha para demostrar la regla de las 24 horas y para que las pruebas den siempre lo mismo.
 
@@ -439,6 +455,8 @@ generarButacasFilas: cantFilas porFila: cantPorFila
 			butacas add: (Butaca fila: letra numero: n x: x y: f)]]
 ```
 
+La sala también es la que sabe **qué butacas existen**. `butacasDeCodigos:` recibe los códigos que escribió el usuario (`'C4' 'c5'`) y devuelve las butacas, o falla si no se indicó ninguna, si hay repetidas o si alguna no existe en la sala.
+
 `Character value: 64 + f` da la letra: 65 es la A, 66 la B... La `posicionX` salta un lugar en la mitad de la fila: ese hueco es el pasillo que se ve en el plano. `planoMarcando: codigosOcupados` dibuja la sala usando esas posiciones.
 
 `Butaca`: `fila numero posicionX posicionY`. Su `codigo` es la fila más el número (`'C7'`). Redefine `=` y `hash` para que dos butacas con la misma fila y número se consideren iguales aunque sean objetos distintos (pasa al releer de disco: las butacas guardadas dentro de una reserva son copias de las de la sala).
@@ -464,27 +482,124 @@ actualizarEstado
 ```
 
 - Las butacas ocupadas son un `Set` (no hay repetidos): una reserva pagada aparece como reserva confirmada **y** como venta, y se cuenta una sola vez.
+- `reservasActivas` son las reservas que siguen ocupando sus butacas: `listaReservas select: [:r | r ocupaButacas]`.
 - `agregarReserva:` y `agregarVenta:` llaman a `actualizarEstado`: la función pasa a `#agotada` sola. Si se cancela una reserva, vuelve a `#disponible`.
+
+Como la función tiene las reservas, las ventas, el precio y el horario, **es ella la que reserva, cobra, cancela y vende** (categoría *reservas y ventas*):
+
+| Método | Qué hace |
+|---|---|
+| `reservar:para:numero:fecha:hora:` | Crea la reserva de esas butacas para el socio, al precio de hoy |
+| `cobrar:a:medioPago:numero:fecha:hora:` | Crea la venta de una reserva y la deja confirmada |
+| `cancelar:fecha:hora:` | Anula una reserva y libera sus butacas |
+| `vender:a:medioPago:numero:fecha:hora:` | Venta directa, sin reserva |
+| `verificarAbiertaEl:hora:` | Falla si la función ya empezó o está agotada |
+| `verificarLibres:` | Falla si alguna de esas butacas ya está ocupada |
+| `importeDe:para:` | Cuánto se cobra hoy por esa cantidad de entradas |
+
+El número (id) y el momento se los pasa el administrador, porque la función no conoce a las demás funciones ni el reloj del sistema.
 
 ### Reserva
 
-Atributos: `id idSocio idFuncion listaButacasReservadas fechaReserva fechaCancelacion estado precioUnitario`. Estados: `#pendiente` → `#confirmada` (se pagó) o `#cancelada`.
+Atributos: `id idSocio idFuncion listaButacasReservadas fechaReserva fechaCancelacion estado precioUnitario`.
+
+`precioUnitario` guarda el precio de la entrada **en el momento de reservar**. Si después cambia el precio de la función, la reserva se cobra al precio viejo (`importeBruto`, `importePara: unSocio`).
+
+Una reserva nace pendiente y después se paga (confirmada) o se anula (cancelada). El `estado` **no es un símbolo sino un objeto**, y la reserva le pasa a ese objeto todo lo que depende del estado. Es el patrón **State**:
 
 ```smalltalk
-puedeCancelarseFaltando: segundosHastaFuncion
-	"Sin costo solo si falta al menos el limite de horas para la funcion"
-	^self estaPendiente and: [segundosHastaFuncion >= (self class horasLimiteCancelacion * 3600)]
+initialize
+	...
+	estado := ReservaPendiente new.
+	precioUnitario := 0
+
+estaPendiente
+	^estado estaPendiente
+
+confirmar
+	"Se pago la reserva. Que pasa depende del estado: solo una pendiente se puede pagar"
+	estado confirmar: self
+
+cancelarEl: unaFecha faltando: segundosHastaFuncion
+	"Anula la reserva. Que pasa depende del estado: solo una pendiente, y a tiempo, se puede anular"
+	estado cancelar: self el: unaFecha faltando: segundosHastaFuncion
 ```
 
-`precioUnitario` guarda el precio de la entrada **en el momento de reservar**. Si después cambia el precio de la función, la reserva se cobra al precio viejo.
+En la reserva no hay ningún `ifTrue:` preguntando en qué estado está.
+
+### EstadoReserva → ReservaPendiente, ReservaConfirmada, ReservaCancelada
+
+`EstadoReserva` es abstracta y tiene el **comportamiento por defecto**: no es ningún estado en particular, las butacas siguen ocupadas, y no se puede ni pagar ni cancelar.
+
+```smalltalk
+"EstadoReserva"
+estaPendiente
+	^false
+
+ocupaButacas
+	"Las butacas de la reserva siguen tomadas? Si, salvo que este cancelada"
+	^true
+
+confirmar: unaReserva
+	"Pagar la reserva. Por defecto no se puede: solo ReservaPendiente lo redefine"
+	^ErrorCine new raiseSignal: 'La reserva no esta pendiente de pago (esta ' , self nombre , ')'
+```
+
+Cada subclase redefine **solo lo que en ese estado es distinto**. `ReservaPendiente` es la única desde la que se puede pasar a otro estado:
+
+```smalltalk
+"ReservaPendiente"
+confirmar: unaReserva
+	unaReserva estado: ReservaConfirmada new
+
+puedeCancelarseFaltando: segundosHastaFuncion
+	"Sin costo solo si falta al menos el limite de horas para la funcion"
+	^segundosHastaFuncion >= (Reserva horasLimiteCancelacion * 3600)
+
+cancelar: unaReserva el: unaFecha faltando: segundosHastaFuncion
+	(self puedeCancelarseFaltando: segundosHastaFuncion) ifFalse: [
+		^ErrorCine new raiseSignal: 'Faltan menos de ' , Reserva horasLimiteCancelacion printString , ' horas para la funcion: la reserva ya no se puede anular y el socio debe pagarla'].
+	unaReserva estado: ReservaCancelada new.
+	unaReserva fechaCancelacion: unaFecha
+```
+
+| | `ReservaPendiente` | `ReservaConfirmada` | `ReservaCancelada` |
+|---|---|---|---|
+| `nombre` | `'pendiente'` | `'confirmada'` | `'cancelada'` |
+| `ocupaButacas` | sí | sí | **no** |
+| `confirmar:` (pagar) | pasa a confirmada | error | error |
+| `cancelar:el:faltando:` | pasa a cancelada (si faltan 24 h o más) | error | error |
+
+Los estados no tienen datos propios. Por eso redefinen `=`: dos estados son iguales si son de la misma clase.
 
 ### Venta
 
 Atributos: `id idReserva idFuncion idSocio fecha hora monto medioPago butacasVendidas`. Dos preguntas simples que evitan comparar con `nil` por todos lados: `esDirecta` (`idReserva` es `nil`) y `esDeSocio` (`idSocio` no es `nil`).
 
+La cuenta de **cuánto se cobra** está en un solo lugar, un método de clase:
+
+```smalltalk
+importe: unImporteBruto para: unSocioONil
+	"Lo que se cobra: con el descuento si compra un socio (nil = no socio), redondeado al centavo"
+	| monto |
+	monto := unSocioONil isNil
+		ifTrue: [unImporteBruto]
+		ifFalse: [unSocioONil aplicarDescuentoA: unImporteBruto].
+	^(monto * 100) rounded / 100
+```
+
 ### MedioPago → PagoEfectivo, PagoTarjeta, PagoTransferencia
 
 Otra jerarquía con polimorfismo. Todos responden `tipo`, `nombre` y `descripcion`; cada uno guarda sus datos (`PagoTarjeta`: tipo, marca, titular, últimos 4 dígitos, cuotas; `PagoTransferencia`: alias y número de operación). La venta guarda **un** medio de pago y no le importa cuál es: al mostrarla solo pide `unaVenta medioPago descripcion`.
+
+Cada medio también sabe **si sus datos están bien** (`validar`): el efectivo no tiene nada que revisar, la tarjeta exige 4 dígitos y entre 1 y 12 cuotas (el débito, una sola), la transferencia exige alias y número de operación. Antes de registrar una venta, la función hace `unMedioPago validar` sin saber de qué clase es.
+
+```smalltalk
+"PagoTarjeta"
+validarDigitos
+	((UtilCine esEntero: ultimosDigitos) and: [ultimosDigitos size = 4])
+		ifFalse: [^ErrorCine new raiseSignal: 'Debe ingresar exactamente 4 digitos']
+```
 
 ### UtilCine
 
@@ -540,32 +655,51 @@ nuevaReserva
 3. Se piden las butacas (`'C4 C5'`) y se llama al administrador:
 
 ```smalltalk
+"AdministradorCine"
 reservarSocio: unIdSocio funcion: unIdFuncion butacas: unosCodigos
-	| socio funcion butacas reserva |
+	"El administrador busca los objetos, pone el numero de reserva y el momento, y guarda.
+	 Las reglas (socio activo, funcion abierta, butacas libres) las aplica la funcion."
+	| socio funcion reserva |
 	socio := self socioId: unIdSocio.
-	socio estaActivo ifFalse: [^self fallar: 'Solo los socios activos pueden reservar'].
 	funcion := self funcionId: unIdFuncion.
-	(funcion comenzoA: self ahoraEnSegundos) ifTrue: [^self fallar: 'La funcion ya comenzo o finalizo'].
-	funcion estaAgotada ifTrue: [^self fallar: 'La funcion esta agotada'].
-	butacas := self butacas: unosCodigos paraFuncion: funcion.
-	reserva := Reserva new
-		id: (self siguienteIdEn: self todasLasReservas);
-		idSocio: unIdSocio;
-		idFuncion: unIdFuncion;
-		listaButacasReservadas: butacas;
-		fechaReserva: self hoy;
-		precioUnitario: funcion precioEntrada;
-		yourself.
-	funcion agregarReserva: reserva.
+	reserva := funcion
+		reservar: ((self salaId: funcion idSala) butacasDeCodigos: unosCodigos)
+		para: socio
+		numero: (self siguienteIdEn: self todasLasReservas)
+		fecha: self hoy
+		hora: self horaActual.
 	self guardar.
 	^reserva
 ```
 
-4. El administrador **vuelve a validar todo** (no confía en la interfaz): socio activo, función que no empezó, no agotada. `butacas:paraFuncion:` revisa que haya al menos una butaca, que no estén repetidas, que existan en la sala y que estén libres.
-5. Crea la `Reserva` (nace `#pendiente`, con el precio de hoy) y se la da a la función. `agregarReserva:` actualiza el estado: si era la última butaca libre, la función queda `#agotada`.
+4. El administrador busca el socio y la función por su id. Le pide a la **sala** las butacas de esos códigos (`butacasDeCodigos:`): si no se escribió ninguna, hay repetidas o alguna no existe, la sala lanza el error.
+5. Le pide a la **función** que reserve, pasándole el número de la nueva reserva y el momento:
+
+```smalltalk
+"Funcion"
+reservar: unasButacas para: unSocio numero: unId fecha: unaFecha hora: unaHora
+	"Reserva esas butacas a nombre del socio, al precio de hoy, y devuelve la reserva.
+	 unId es el numero de la nueva reserva; la fecha y la hora son el momento en que se hace."
+	| reserva |
+	unSocio estaActivo ifFalse: [^ErrorCine new raiseSignal: 'Solo los socios activos pueden reservar'].
+	self verificarAbiertaEl: unaFecha hora: unaHora.
+	self verificarLibres: unasButacas.
+	reserva := Reserva new
+		id: unId;
+		idSocio: unSocio id;
+		idFuncion: id;
+		listaButacasReservadas: unasButacas;
+		fechaReserva: unaFecha;
+		precioUnitario: precioEntrada;
+		yourself.
+	self agregarReserva: reserva.
+	^reserva
+```
+
+   La función **vuelve a validar todo** (no confía en la interfaz): socio activo, que no haya empezado ni esté agotada, y que las butacas estén libres. Recién entonces crea la `Reserva` (nace pendiente, con el precio de hoy) y la agrega a su lista. `agregarReserva:` actualiza el estado de la función: si era la última butaca libre, queda `#agotada`.
 6. `self guardar` graba en disco. La ventana muestra la reserva, lo que hay que pagar (con el 20% de descuento) y el plano actualizado.
 
-Si algo falla, `fallar:` lanza un `ErrorCine`, que sube hasta `ejecutar:` y se muestra como aviso. No se guarda nada.
+Si algo falla, quien detectó el problema (la sala, la función) lanza un `ErrorCine`, que sube hasta `ejecutar:` y se muestra como aviso. Como todas las verificaciones están antes de crear la reserva, no se cambia ni se guarda nada.
 
 ### Pagar una reserva (botón "Pagar reserva")
 
@@ -578,45 +712,76 @@ pagarReserva
 ```
 
 1. Se elige una reserva pendiente y el medio de pago. `pedirMedioPago` pregunta el tipo y, según cuál sea, los datos que correspondan; devuelve un `PagoEfectivo`, un `PagoTarjeta` o un `PagoTransferencia` ya armado.
-2. `venderReserva:medioPago:` crea la `Venta` con **las mismas butacas** de la reserva, calcula el monto, marca la reserva como `#confirmada` (`reserva confirmar`), agrega la venta a la función y guarda.
-3. El monto sale de acá:
+2. `AdministradorCine>>venderReserva:medioPago:` busca la reserva, su función y su socio, y le pide a la función que la cobre:
 
 ```smalltalk
-montoDeReserva: unaReserva
-	^self calcularMontoPrecio: unaReserva precioUnitario cantidad: unaReserva cantidadButacas socio: (self socioId: unaReserva idSocio)
-
-calcularMontoPrecio: unPrecio cantidad: unaCantidad socio: unSocioOrNil
-	"Importe a cobrar, redondeado al centavo"
-	| bruto monto |
-	bruto := unPrecio * unaCantidad.
-	monto := unSocioOrNil isNil ifTrue: [bruto] ifFalse: [unSocioOrNil aplicarDescuentoA: bruto].
-	^(monto * 100) rounded / 100
+"Funcion"
+cobrar: unaReserva a: unSocio medioPago: unMedioPago numero: unId fecha: unaFecha hora: unaHora
+	"Venta en base a una reserva: se venden las mismas butacas, al precio que tenia la entrada
+	 cuando se reservo, y la reserva queda confirmada. Devuelve la venta."
+	| venta |
+	unMedioPago validar.
+	venta := Venta new
+		id: unId;
+		idReserva: unaReserva id;
+		idFuncion: id;
+		idSocio: unSocio id;
+		fecha: unaFecha;
+		hora: unaHora;
+		medioPago: unMedioPago;
+		butacasVendidas: unaReserva listaButacasReservadas copy;
+		monto: (unaReserva importePara: unSocio);
+		yourself.
+	"Si la reserva no esta pendiente, su estado lanza el error aca y no se agrega la venta"
+	unaReserva confirmar.
+	self agregarVenta: venta.
+	^venta
 ```
 
-Se usa `unaReserva precioUnitario` (el precio de cuando reservó), no el precio actual de la función.
+   - `unMedioPago validar`: cada medio revisa sus datos (polimorfismo).
+   - La venta lleva **las mismas butacas** de la reserva.
+   - `unaReserva confirmar` le pasa el pedido a su estado: si está pendiente pasa a confirmada; si ya estaba pagada o cancelada, el estado lanza el error y la venta no se agrega.
+3. El monto lo calcula la reserva, con **su** precio (el de cuando se reservó, no el actual de la función):
+
+```smalltalk
+"Reserva"
+importeBruto
+	"Lo que valen las butacas reservadas al precio del dia de la reserva, sin descuentos"
+	^precioUnitario * self cantidadButacas
+
+importePara: unSocio
+	"Lo que tiene que pagar el socio por esta reserva: al precio del dia en que reservo y con su descuento"
+	^Venta importe: self importeBruto para: unSocio
+```
+
+   `Venta importe:para:` aplica el descuento del socio y redondea al centavo (ver la clase `Venta` en la sección 3).
 
 ### Cancelar una reserva (botón "Cancelar reserva")
 
 ```smalltalk
+"AdministradorCine"
 cancelarReserva: unIdReserva
-	"Se puede cancelar sin costo hasta 24 hs antes; despues ya no se anula y el socio debe pagarla"
 	| reserva funcion |
 	reserva := self reservaId: unIdReserva.
-	reserva estaPendiente ifFalse: [^self fallar: 'Solo se pueden cancelar reservas pendientes (la reserva esta ' , reserva estado , ')'].
 	funcion := self funcionId: reserva idFuncion.
-	(reserva puedeCancelarseFaltando: (funcion segundosHastaInicioDesde: self ahoraEnSegundos))
-		ifFalse: [^self fallar: 'Faltan menos de ' , Reserva horasLimiteCancelacion printString , ' horas para la funcion: la reserva ya no se puede anular y el socio debe pagarla'].
-	reserva cancelarEl: self hoy.
-	funcion actualizarEstado.
+	funcion cancelar: reserva fecha: self hoy hora: self horaActual.
 	self guardar.
 	^reserva
+
+"Funcion"
+cancelar: unaReserva fecha: unaFecha hora: unaHora
+	"Anula la reserva (si su estado y el tiempo que falta lo permiten) y libera sus butacas"
+	unaReserva
+		cancelarEl: unaFecha
+		faltando: (self segundosHastaInicioDesde: (UtilCine segundosDe: unaFecha hora: unaHora)).
+	self actualizarEstado
 ```
 
-Cada objeto contesta lo que sabe: la **función** dice cuántos segundos faltan para que empiece, la **reserva** decide si con ese tiempo se puede cancelar, y el **administrador** coordina. La reserva no se borra: queda `#cancelada` con su fecha (por eso figura en el historial del socio). `funcion actualizarEstado` libera las butacas: si la función estaba agotada, vuelve a estar disponible.
+Cada objeto hace lo que sabe: el **administrador** busca y guarda, la **función** calcula cuántos segundos faltan para que empiece, la **reserva** le pasa el pedido a su **estado**, y el estado decide: `ReservaPendiente` cancela si faltan 24 horas o más (y si no, lanza el error "Faltan menos de 24 horas..."); los otros dos estados contestan que solo se cancelan reservas pendientes. La reserva no se borra: queda cancelada con su fecha (por eso figura en el historial del socio). `self actualizarEstado` libera las butacas: si la función estaba agotada, vuelve a estar disponible.
 
 ### Venta directa (botón "Venta directa")
 
-Igual que la reserva pero sin reserva: se elige función, se escriben las butacas, se pregunta si el comprador es socio (si lo es, se elige cuál: solo activos) y el medio de pago. `venderFuncion:butacas:medioPago:socio:` valida lo mismo que una reserva y crea la `Venta` con `idReserva: nil`. Si se pasó un socio, se le aplica el descuento; si no, `idSocio` queda en `nil`.
+Igual que la reserva pero sin reserva: se elige función, se escriben las butacas, se pregunta si el comprador es socio (si lo es, se elige cuál: solo activos) y el medio de pago. `AdministradorCine>>venderFuncion:butacas:medioPago:socio:` busca la función y el socio (si hay) y llama a `Funcion>>vender:a:medioPago:numero:fecha:hora:`, que valida lo mismo que una reserva, hace `unMedioPago validar` y crea la `Venta` con `idReserva: nil`. Si se pasó un socio, se le aplica el descuento; si no, `idSocio` queda en `nil`.
 
 La ventana valida las butacas **antes** de preguntar por el pago (`admin butacas: codigos paraFuncion: f`), para no hacer cargar los datos de la tarjeta si la butaca ya estaba ocupada.
 
@@ -648,7 +813,7 @@ archivoDe: unNombre
 	^carpetaDatos asFilename construct: unNombre , '.bos'
 ```
 
-Las reservas y las ventas no tienen archivo propio: están dentro de cada función, así que viajan en `funciones.bos`. Las butacas viajan dentro de cada sala y las críticas dentro de cada película.
+Las reservas y las ventas no tienen archivo propio: están dentro de cada función, así que viajan en `funciones.bos`. Las butacas viajan dentro de cada sala, las críticas dentro de cada película y el estado dentro de cada reserva.
 
 **Guardar** (se llama al final de cada operación que cambia algo):
 
@@ -683,7 +848,7 @@ leerListaDe: unArchivo
 
 **Si un archivo está dañado.** `cargar` anota su nombre en `listasIlegibles` y sigue con los demás. Mientras haya alguno, `guardar` se niega a grabar (y avisa): si grabara, pisaría el archivo dañado con una lista vacía y esos datos se perderían para siempre. Se soluciona reparando o quitando el archivo y usando *Recargar desde disco*, o con *Cargar datos de prueba* para empezar de cero.
 
-**Si se cambian los atributos de una clase**, los `.bos` viejos pueden dejar de leerse (se guardaron con la forma anterior de la clase). Pasó al agregarle `precioUnitario` a `Reserva`: `funciones.bos` quedó ilegible. La solución es regenerar los datos con *Cargar datos de prueba*.
+**Si se cambian los atributos de una clase**, los `.bos` viejos pueden dejar de leerse (se guardaron con la forma anterior de la clase). Pasó al agregarle `precioUnitario` a `Reserva`: `funciones.bos` quedó ilegible. Y si lo que cambia es **qué se guarda** en un atributo (el `estado` de la reserva pasó de ser un símbolo a ser un objeto), el archivo viejo se lee pero después falla al usarlo. En los dos casos la solución es regenerar los datos con *Cargar datos de prueba*.
 
 ---
 
@@ -804,7 +969,7 @@ También se puede editar `windowSpec` a mano, copiando la línea de un botón y 
 
 ## 7. Las pruebas automáticas
 
-Están en un archivo aparte, `src/CineTeatro-Tests.st` (paquete `CineTeatro-Tests`), y usan **SUnitToo**, el framework de pruebas que trae VisualWorks. Son **199 pruebas**.
+Están en un archivo aparte, `src/CineTeatro-Tests.st` (paquete `CineTeatro-Tests`), y usan **SUnitToo**, el framework de pruebas que trae VisualWorks. Son **226 pruebas**.
 
 ### Cómo es una prueba
 
@@ -846,6 +1011,8 @@ setUp
 | `ObrasSalasTest` | 17 | Alta, baja y modificación de películas, obras y salas; elenco; cartel; plano |
 | `FuncionesTest` | 15 | Programar funciones: superposición (incluida una que cruza la medianoche), sala que no admite el tipo de obra, pasado, precio |
 | `ReservasVentasTest` | 24 | Reglas de reserva (socio activo, butacas ocupadas, inexistentes o repetidas), 24 horas, paso a agotada, descuento, precio congelado, medios de pago |
+| `EstadosReservaTest` | 11 | El patrón State: qué se puede hacer en cada estado y cómo se pasa de uno a otro |
+| `DominioTest` | 16 | `Sala`, `Funcion`, `Reserva`, `Venta` y los medios de pago usados directamente, sin el administrador |
 | `ConsultasTest` | 16 | Las 7 consultas del enunciado y las 5 agregadas |
 | `PersistenciaTest` | 11 | Guardar y releer; archivos dañados |
 | `VentanaCineTest` | 80 | **Los 51 botones de la interfaz**, con sus casos de error y de cancelación |
@@ -971,6 +1138,17 @@ Ejemplo: **socios que nunca compraron**.
 
 La regla: **el administrador calcula y devuelve datos; la ventana decide cómo mostrarlos.**
 
+### Un estado nuevo para las reservas
+
+Ejemplo: **reserva vencida** (no se pagó y la función ya empezó).
+
+1. Crear `ReservaVencida` como subclase de `EstadoReserva`.
+2. Redefinir `nombre` (`^'vencida'`) y lo que sea distinto del comportamiento por defecto; por ejemplo `ocupaButacas` (`^false`). Pagar y cancelar ya dan error sin escribir nada: lo hereda.
+3. Agregar en `EstadoReserva` la pregunta `estaVencida` (`^false`) y redefinirla en la clase nueva (`^true`); en `Reserva`, `estaVencida` (`^estado estaVencida`).
+4. Decidir quién hace el cambio de estado. Por ejemplo `ReservaPendiente>>vencer: unaReserva` (`unaReserva estado: ReservaVencida new`), con el error por defecto en `EstadoReserva`.
+
+No hay que tocar ningún `ifTrue:` en el resto del sistema: esa es la ventaja del patrón.
+
 ### Un atributo nuevo
 
 Ejemplo: **teléfono fijo en `Persona`**.
@@ -988,19 +1166,25 @@ Ejemplo: **teléfono fijo en `Persona`**.
 ## 9. Preguntas típicas de la defensa
 
 **¿Dónde hay herencia?**
-`ObraArtistica` → `Pelicula`, `ObraTeatro`. `MedioPago` → `PagoEfectivo`, `PagoTarjeta`, `PagoTransferencia`. `VentanaCine` hereda de `ApplicationModel`; `ErrorCine` y `AccionCancelada` de `Error`. En las pruebas, todas heredan de `CineTestCase`.
+`ObraArtistica` → `Pelicula`, `ObraTeatro`. `MedioPago` → `PagoEfectivo`, `PagoTarjeta`, `PagoTransferencia`. `EstadoReserva` → `ReservaPendiente`, `ReservaConfirmada`, `ReservaCancelada`. `VentanaCine` hereda de `ApplicationModel`; `ErrorCine` y `AccionCancelada` de `Error`. En las pruebas, todas heredan de `CineTestCase`.
 
 **¿Dónde hay polimorfismo?**
-`obra puedePresentarseEn: sala` (cada tipo de obra pregunta por lo suyo), `agregarCritica:` (solo las películas aceptan), `tipoTexto`, `admiteCriticas`; `medioPago descripcion` (cada medio se describe distinto); `printOn:` en casi todas las clases. Y `VentanaCineDePrueba`, que redefine los diálogos. En ninguno de esos lugares el código pregunta "¿de qué clase sos?".
+`obra puedePresentarseEn: sala` (cada tipo de obra pregunta por lo suyo), `agregarCritica:` (solo las películas aceptan), `tipoTexto`, `admiteCriticas`; `medioPago descripcion` y `medioPago validar` (cada medio se describe y se revisa distinto); `estado confirmar: unaReserva` (cada estado de la reserva reacciona distinto); `printOn:` en casi todas las clases. Y `VentanaCineDePrueba`, que redefine los diálogos. En ninguno de esos lugares el código pregunta "¿de qué clase sos?".
 
 **¿Qué es una clase abstracta? ¿Cuáles hay?**
-Una clase de la que no se crean instancias: sirve para juntar lo común de sus subclases. `ObraArtistica` y `MedioPago`. Sus métodos sin implementación devuelven `self subclassResponsibility`, que da error si una subclase se olvida de definirlos.
+Una clase de la que no se crean instancias: sirve para juntar lo común de sus subclases. `ObraArtistica`, `MedioPago` y `EstadoReserva`. Sus métodos sin implementación devuelven `self subclassResponsibility`, que da error si una subclase se olvida de definirlos.
 
 **¿Dónde está el encapsulamiento?**
-Los atributos solo se tocan desde los métodos del propio objeto. Ejemplo: nadie de afuera le pone `estado := #agotada` a una función; la función lo decide sola en `actualizarEstado`. Lo mismo `reserva confirmar` y `reserva cancelarEl:`.
+Los atributos solo se tocan desde los métodos del propio objeto. Ejemplo: nadie de afuera le pone `estado := #agotada` a una función; la función lo decide sola en `actualizarEstado`. Lo mismo `reserva confirmar` y `reserva cancelarEl:faltando:`: quien los llama no sabe (ni puede cambiar) cómo guarda la reserva su estado.
 
 **¿Por qué una clase central (`AdministradorCine`)?**
-La pide el enunciado. Es la que tiene las listas, así que es la única que puede validar cosas que dependen de varias (DNI repetido, sala libre) y la que guarda. La interfaz solo habla con ella.
+La pide el enunciado. Es la que tiene las listas, así que es la única que puede validar cosas que dependen de varias (DNI repetido, sala libre), la que asigna los ids y la que guarda. La interfaz solo habla con ella. Pero no hace todo: en las reservas y las ventas busca los objetos y le deja el trabajo a la función.
+
+**¿Dónde se ve el principio Experto?**
+Cada regla está en la clase que tiene los datos para aplicarla. La `Sala` sabe qué butacas existen (`butacasDeCodigos:`). La `Funcion` sabe cuáles están libres, si ya empezó y si está agotada, y por eso es la que reserva, cobra, cancela y vende. La `Reserva` sabe cuánto vale (`importePara:`). El `Socio` sabe aplicar su descuento. Cada `MedioPago` sabe si sus datos están completos (`validar`). El estado de la reserva sabe qué se puede hacer en ese estado.
+
+**¿Qué es el patrón State y por qué lo usaron?**
+Cuando lo que un objeto puede hacer depende de su estado, en lugar de preguntar por el estado en cada método (`estado = #pendiente ifTrue: [...]`), el estado es un objeto y se le delega. `Reserva` tiene un `EstadoReserva`, que puede ser `ReservaPendiente`, `ReservaConfirmada` o `ReservaCancelada`. Pagar o cancelar una reserva es mandarle el mensaje a su estado: el pendiente lo hace y cambia el estado de la reserva; los otros dos lanzan un error. Ventajas: las reglas de cada estado están juntas en una clase, y agregar un estado es agregar una clase sin tocar las demás.
 
 **¿Por qué las relaciones son por id y no con el objeto directamente?**
 Por la persistencia: cada lista va en su archivo. Con referencias directas, BOSS duplicaría objetos entre archivos (ver sección 5). Además es como lo plantea el enunciado.
@@ -1015,16 +1199,16 @@ Cada vez que se agrega una reserva o una venta (o se cancela una reserva), la fu
 Se convierte fecha y hora a segundos y se buscan funciones de esa sala cuyo intervalo se cruce con el nuevo (`seSuperponeDesde:hasta:`). Como son segundos absolutos, las funciones que cruzan la medianoche no necesitan nada especial.
 
 **¿Cómo se implementa la regla de las 24 horas?**
-La función dice cuántos segundos faltan para que empiece y la reserva compara con `horasLimiteCancelacion * 3600`. El 24 está en un solo lugar (`Reserva class>>horasLimiteCancelacion`).
+La función calcula cuántos segundos faltan para que empiece y se los pasa a la reserva, que se lo delega a su estado: `ReservaPendiente` compara con `horasLimiteCancelacion * 3600`. El 24 está en un solo lugar (`Reserva class>>horasLimiteCancelacion`).
 
 **¿Y el descuento de socios?**
-`Socio>>aplicarDescuentoA:`, con el 20 en `Socio class>>porcentajeDescuento`. Se aplica en `calcularMontoPrecio:cantidad:socio:`, tanto al pagar una reserva como en una venta directa a un socio activo.
+`Socio>>aplicarDescuentoA:`, con el 20 en `Socio class>>porcentajeDescuento`. Lo usa `Venta class>>importe:para:`, que es por donde pasan todos los cobros: al pagar una reserva (`Reserva>>importePara:`) y en una venta directa a un socio activo (`Funcion>>importeDe:para:`).
 
 **¿Por qué los importes no son `Float`?**
 Los `Float` no representan exactamente los decimales (0,1 + 0,2 no da 0,3). `numeroDesde:` devuelve enteros o fracciones exactas (`'4500,50'` → `9001/2`) y Smalltalk opera fracciones sin perder nada. Recién al cobrar se redondea al centavo.
 
 **¿Qué pasa si el usuario cancela un diálogo a la mitad?**
-El ayudante (`pedir:`, `elegir:...`) lanza `AccionCancelada`, que corta el método del botón y llega a `ejecutar:`, que la ignora. Como el administrador recién modifica y guarda al final, no queda nada a medias. Hay pruebas que cancelan en cada paso de cada botón.
+El ayudante (`pedir:`, `elegir:...`) lanza `AccionCancelada`, que corta el método del botón y llega a `ejecutar:`, que la ignora. Como recién se modifica y se guarda al final, después de todas las verificaciones, no queda nada a medias. Hay pruebas que cancelan en cada paso de cada botón.
 
 **¿Qué diferencia hay entre `ErrorCine` y un error común?**
 `ErrorCine` es un error **esperado**, de negocio; la ventana lo atrapa y lo muestra. Un error común (un mensaje que el objeto no entiende, por ejemplo) es un bug: no se atrapa y abre el debugger.
@@ -1033,15 +1217,16 @@ El ayudante (`pedir:`, `elegir:...`) lanza `AccionCancelada`, que corta el méto
 Código entre corchetes que se ejecuta cuando alguien le manda `value`. Se usan en las decisiones (`ifTrue:`), para recorrer colecciones (`select:`, `do:`), para manejar errores (`on:do:`, `ensure:`) y en `ejecutar: [...]`.
 
 **¿Qué patrones de diseño hay?**
-*Singleton* (`AdministradorCine default`), *Observer* (el `ValueHolder` de `salida`), *Template Method* en pequeño (`MedioPago>>descripcion` usa `nombre`, que define cada subclase; `registrarObra:...` es el alta común y cada tipo le pasa su objeto). `AdministradorCine` hace de *fachada* del modelo para la interfaz.
+*State* (los estados de `Reserva`), *Singleton* (`AdministradorCine default`), *Observer* (el `ValueHolder` de `salida`), *Template Method* en pequeño (`MedioPago>>descripcion` usa `nombre`, que define cada subclase; `registrarObra:...` es el alta común y cada tipo le pasa su objeto). `AdministradorCine` hace de *fachada* del modelo para la interfaz.
 
 **¿Cómo se guarda la información?**
 Con BOSS, una lista por archivo, automáticamente después de cada operación. Ver sección 5.
 
 **¿Qué mejorarían?**
-- Pasar más lógica del administrador a las clases que tienen los datos (principio *Experto*): por ejemplo que `Funcion` tenga `reservar: unasButacas para: unSocio`.
-- Modelar los estados de la reserva con el patrón *State* (una clase por estado) en lugar de un símbolo.
+- Seguir aplicando *Experto*: las validaciones de los datos de una persona, una sala o una obra todavía están en el administrador y podrían pasar a esas clases.
+- Usar *State* también para el estado de `Funcion` (disponible / agotada), de `Socio` y de las obras, que siguen siendo símbolos porque casi no tienen comportamiento distinto por estado.
 - Que cada lista tenga un contador de ids que nunca baje.
+- Poder cambiar la fecha y la hora de una función ya programada.
 
 ---
 

@@ -10,8 +10,8 @@ Implementado en **Smalltalk (VisualWorks 8.2)**. El sistema es un solo paquete, 
 
 | Archivo | Qué es |
 |---|---|
-| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 21 clases, 511 métodos |
-| `src/CineTeatro-Tests.st` | Pruebas automáticas con SUnitToo: 199 pruebas en 8 clases |
+| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 25 clases, 549 métodos |
+| `src/CineTeatro-Tests.st` | Pruebas automáticas con SUnitToo: 226 pruebas en 10 clases |
 | `tests/correr-pruebas.st` | Script que carga todo en una imagen limpia, corre las pruebas y escribe `tests/resultado.txt` |
 | `datosCine/*.bos` | Datos de prueba ya cargados, una lista por archivo (personas, socios, criticos, obras, salas, funciones) |
 | `docs/GUIA.md` | Guía para entender el código |
@@ -52,7 +52,7 @@ Get-Content tests\resultado.txt
 Ajustá la primera línea si VisualWorks está instalado en otra carpeta. El script carga SUnitToo, `CineTeatro.st` y `CineTeatro-Tests.st` en una copia limpia de la imagen (`trabajo.im`, que git ignora), verifica que **todos los métodos compilen** y que no queden variables sin declarar, y corre las pruebas. El final de `tests/resultado.txt` tiene que decir:
 
 ```
-TOTAL: 199 pruebas, 199 pasaron, 0 fallaron, 0 con error
+TOTAL: 226 pruebas, 226 pasaron, 0 fallaron, 0 con error
 
 RESULTADO: TODAS LAS PRUEBAS PASARON
 ```
@@ -66,6 +66,8 @@ Las pruebas trabajan en una carpeta temporal (`pruebasCineTmp`) y con el reloj s
 | `ObrasSalasTest` | 17 | Altas, bajas y modificaciones de películas, obras y salas; elenco; cartel |
 | `FuncionesTest` | 15 | Programación de funciones y superposición de horarios (incluida la medianoche) |
 | `ReservasVentasTest` | 24 | Reglas de reserva, 24 horas, función agotada, descuento, medios de pago |
+| `EstadosReservaTest` | 11 | Los estados de una reserva (patrón State) |
+| `DominioTest` | 16 | `Sala`, `Funcion`, `Reserva`, `Venta` y los medios de pago usados directamente |
 | `ConsultasTest` | 16 | Las 7 consultas pedidas y las 5 agregadas |
 | `PersistenciaTest` | 11 | Guardar, releer y archivos dañados |
 | `VentanaCineTest` | 80 | Los 51 botones de la interfaz, con errores y cancelaciones (con diálogos simulados, sin abrir ventanas) |
@@ -78,16 +80,17 @@ Para cargarlas y correrlas desde adentro de VisualWorks, ver la [guía](docs/GUI
 
 | Clase | Responsabilidad |
 |---|---|
-| `AdministradorCine` | Clase central pedida por el enunciado. Gestión de personas, socios, críticos, obras, salas y funciones; reservas y ventas; consultas; persistencia; reloj del sistema |
+| `AdministradorCine` | Clase central pedida por el enunciado. Gestión de personas, socios, críticos, obras, salas y funciones; consultas; persistencia; reloj del sistema. En las reservas y ventas coordina: busca los objetos, asigna los ids y guarda |
 | `Persona` | id, nombre, dni, fechaNacimiento, sexo, domicilio, email, celular |
 | `Socio` | id, idPersona, fechaAlta, estado (#activo/#inactivo). Sabe aplicar su 20% de descuento |
 | `Critico` / `Critica` | Usuario crítico; reseña con puntaje de 1 a 10 |
 | `ObraArtistica` (abstracta) → `Pelicula`, `ObraTeatro` | Se dividió como sugiere el enunciado. **Polimorfismo**: `tipo`, `puedePresentarseEn: unaSala`, `admiteCriticas`, `agregarCritica:` |
-| `Sala` / `Butaca` | La sala genera sus butacas (fila letra + número, con posición X/Y y pasillo central) y dibuja su plano |
-| `Funcion` | Obra + sala + fecha + hora + precio, con `listaReservas` y `listaVentas`. Calcula ocupación y superposición de horarios, y pasa a **#agotada** sola |
-| `Reserva` | Estados #pendiente / #confirmada / #cancelada; regla de las 24 hs; guarda el precio de la entrada al momento de reservar |
-| `Venta` | Directa (idReserva = nil) o desde una reserva; idSocio = nil si el comprador no es socio |
-| `MedioPago` (abstracta) → `PagoEfectivo`, `PagoTarjeta`, `PagoTransferencia` | Datos específicos de cada medio (tarjeta: tipo, marca, últimos 4, cuotas, titular; transferencia: alias y número de operación) |
+| `Sala` / `Butaca` | La sala genera sus butacas (fila letra + número, con posición X/Y y pasillo central), dibuja su plano y valida los códigos de butaca |
+| `Funcion` | Obra + sala + fecha + hora + precio, con `listaReservas` y `listaVentas`. Calcula ocupación y superposición de horarios, pasa a **#agotada** sola, y es la que **reserva, cobra, cancela y vende** (principio Experto) |
+| `Reserva` | Guarda el precio de la entrada al momento de reservar y sabe cuánto vale. Lo que depende de su estado se lo delega a un objeto estado |
+| `EstadoReserva` (abstracta) → `ReservaPendiente`, `ReservaConfirmada`, `ReservaCancelada` | **Patrón State**: cada estado decide si la reserva se puede pagar o cancelar (regla de las 24 hs) y si sigue ocupando sus butacas |
+| `Venta` | Directa (idReserva = nil) o desde una reserva; idSocio = nil si el comprador no es socio. Calcula el importe a cobrar (descuento y redondeo) |
+| `MedioPago` (abstracta) → `PagoEfectivo`, `PagoTarjeta`, `PagoTransferencia` | Datos específicos de cada medio (tarjeta: tipo, marca, últimos 4, cuotas, titular; transferencia: alias y número de operación). Cada uno valida sus propios datos |
 | `UtilCine` | Formatos y conversiones (fechas dd/mm/aaaa, horas hh:mm, moneda $ 1.234,50) |
 | `ErrorCine` / `AccionCancelada` | Errores de negocio (la interfaz los muestra como aviso) y cancelación de un diálogo (la acción se abandona sin cambiar nada) |
 | `VentanaCine` | Interfaz gráfica (ApplicationModel): botones por módulo, diálogos para cargar datos y panel de resultados |

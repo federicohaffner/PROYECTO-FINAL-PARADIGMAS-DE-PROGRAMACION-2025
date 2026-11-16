@@ -246,7 +246,7 @@
 
 <comment>
 <class-id>Sala</class-id>
-<body>Sala del cine/teatro con su lista de butacas numeradas.</body>
+<body>Sala del cine/teatro con su lista de butacas numeradas. Genera sus butacas, dibuja su plano y sabe que butacas existen (butacasDeCodigos:).</body>
 </comment>
 
 <class>
@@ -266,7 +266,7 @@
 
 <comment>
 <class-id>Funcion</class-id>
-<body>Proyeccion de una pelicula o presentacion de una obra en una sala, fecha y hora. estado #disponible / #agotada.</body>
+<body>Proyeccion de una pelicula o presentacion de una obra en una sala, fecha y hora. estado #disponible / #agotada. Tiene sus reservas y sus ventas, asi que es la que reserva, cobra, cancela y vende (categoria 'reservas y ventas'): sabe que butacas estan libres, si ya empezo y cuanto cuesta la entrada.</body>
 </comment>
 
 <class>
@@ -386,7 +386,7 @@
 
 <comment>
 <class-id>MedioPago</class-id>
-<body>Clase abstracta de los medios de pago de una venta (efectivo, tarjeta, transferencia).</body>
+<body>Clase abstracta de los medios de pago de una venta (efectivo, tarjeta, transferencia). Cada subclase guarda sus datos, se describe (descripcion) y revisa que esten completos (validar).</body>
 </comment>
 
 <class>
@@ -466,7 +466,7 @@
 
 <comment>
 <class-id>Venta</class-id>
-<body>Venta de entradas. Directa (idReserva = nil) o a partir de una reserva. idSocio es nil si el comprador no es socio.</body>
+<body>Venta de entradas. Directa (idReserva = nil) o a partir de una reserva. idSocio es nil si el comprador no es socio. La clase calcula el importe a cobrar (importe:para:): descuento de socio y redondeo al centavo.</body>
 </comment>
 
 <class>
@@ -486,7 +486,7 @@
 
 <comment>
 <class-id>AdministradorCine</class-id>
-<body>Administrador del Cine/Teatro. Concentra la gestion de personas, socios, criticos, obras, salas, funciones, reservas y ventas, las consultas y la persistencia en disco (una lista por archivo, con BOSS).</body>
+<body>Administrador del Cine/Teatro. Tiene las listas de personas, socios, criticos, obras, salas y funciones; hace las altas, bajas y modificaciones, las consultas y la persistencia en disco (una lista por archivo, con BOSS). En las reservas y ventas coordina: busca los objetos, asigna los numeros (ids), pasa la fecha y hora del sistema y guarda; las reglas las aplican Sala, Funcion, Reserva y los medios de pago.</body>
 </comment>
 
 <class>
