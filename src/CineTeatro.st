@@ -1488,7 +1488,10 @@
 	self actualizarEstado</body>
 
 <body package="CineTeatro" selector="tieneMovimientos">tieneMovimientos
-	^self reservasActivas notEmpty or: [listaVentas notEmpty]</body>
+	"Tiene alguna reserva (en cualquier estado, tambien cancelada) o alguna venta.
+	 Una funcion con movimientos no se elimina: se perderia su historial y los
+	 numeros de reserva volverian a usarse."
+	^listaReservas notEmpty or: [listaVentas notEmpty]</body>
 
 </methods>
 
@@ -2420,7 +2423,7 @@
 <body package="CineTeatro" selector="cancelarFuncion:">cancelarFuncion: unIdFuncion
 	| funcion |
 	funcion := self funcionId: unIdFuncion.
-	funcion tieneMovimientos ifTrue: [^self fallar: 'No se puede eliminar: la funcion tiene reservas activas o ventas'].
+	funcion tieneMovimientos ifTrue: [^self fallar: 'No se puede eliminar: la funcion tiene reservas (aunque esten canceladas) o ventas'].
 	funciones remove: funcion.
 	self guardar.
 	^funcion</body>

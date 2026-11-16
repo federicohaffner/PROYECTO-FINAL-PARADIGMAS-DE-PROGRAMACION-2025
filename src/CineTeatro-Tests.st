@@ -606,4 +606,217 @@
 
 </methods>
 
+<class>
+<name>FuncionesTest</name>
+<environment>Smalltalk</environment>
+<super>CineTestCase</super>
+<private>false</private>
+<indexed-type>none</indexed-type>
+<inst-vars>cine teatro peli obra</inst-vars>
+<class-inst-vars></class-inst-vars>
+<imports></imports>
+<category>CineTeatro-Tests</category>
+<attributes>
+<package>CineTeatro-Tests</package>
+</attributes>
+</class>
+
+<comment>
+<class-id>FuncionesTest</class-id>
+<body>Pruebas de la gestion de funciones: validaciones al programar, superposicion de horarios en una sala (incluida una funcion que cruza la medianoche), cambio de precio y eliminacion. Cada prueba arranca con una sala de cine, una de teatro, una pelicula de 100 minutos y una obra de teatro de 90.</body>
+</comment>
+
+<methods>
+<class-id>FuncionesTest</class-id> <category>running</category>
+
+<body package="CineTeatro-Tests" selector="setUp">setUp
+	super setUp.
+	cine := self salaCine.
+	teatro := self salaTeatro.
+	peli := self pelicula: 'Peli'.
+	obra := self obraDeTeatro: 'Obra'</body>
+
+<body package="CineTeatro-Tests" selector="programar:en:dia:hora:minutos:">programar: unaObra en: unaSala dia: n hora: h minutos: m
+	^admin programarFuncionObra: unaObra id sala: unaSala id fecha: (self dia: n) hora: (self hora: h minutos: m) precio: 1000</body>
+
+</methods>
+
+<methods>
+<class-id>FuncionesTest</class-id> <category>programar</category>
+
+<body package="CineTeatro-Tests" selector="testProgramarGuardaLosDatosDeLaFuncion">testProgramarGuardaLosDatosDeLaFuncion
+	| f |
+	f := self funcionDe: peli en: cine dia: 5 hora: 20.
+	self assert: f id equals: 1.
+	self assert: f idObra equals: peli id.
+	self assert: f idSala equals: cine id.
+	self assert: f fecha equals: (self dia: 5).
+	self assert: f horaInicio equals: (self hora: 20).
+	self assert: f precioEntrada equals: 1000.
+	"La funcion copia la duracion de la obra y la capacidad de la sala"
+	self assert: f duracion equals: 100.
+	self assert: f horaFin equals: (self hora: 21 minutos: 40).
+	self assert: f capacidad equals: 12.
+	self assert: f estado equals: #disponible.
+	self assert: f listaReservas isEmpty.
+	self assert: f listaVentas isEmpty.
+	self assert: (admin funcionId: 1) == f</body>
+
+<body package="CineTeatro-Tests" selector="testSoloSeProgramanObrasEnCartel">testSoloSeProgramanObrasEnCartel
+	admin sacarDeCartel: peli id.
+	self assert: (self mensajeDeError: [self funcionDe: peli en: cine dia: 5 hora: 20]) contiene: 'en cartel'.
+	admin ponerEnCartel: peli id.
+	self assert: (self funcionDe: peli en: cine dia: 5 hora: 20) id equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testLaSalaTieneQueAdmitirElTipoDeObra">testLaSalaTieneQueAdmitirElTipoDeObra
+	"Polimorfismo: cada tipo de obra sabe en que sala puede presentarse"
+	| mixta |
+	self assert: (peli puedePresentarseEn: cine).
+	self deny: (peli puedePresentarseEn: teatro).
+	self assert: (obra puedePresentarseEn: teatro).
+	self deny: (obra puedePresentarseEn: cine).
+	self assert: (self mensajeDeError: [self funcionDe: peli en: teatro dia: 5 hora: 20]) contiene: 'no admite Pelicula'.
+	self assert: (self mensajeDeError: [self funcionDe: obra en: cine dia: 5 hora: 20]) contiene: 'no admite Obra de teatro'.
+	self assert: (self funcionDe: obra en: teatro dia: 5 hora: 20) duracion equals: 90.
+	mixta := admin altaSalaNombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: true.
+	self funcionDe: peli en: mixta dia: 5 hora: 16.
+	self funcionDe: obra en: mixta dia: 5 hora: 20.
+	self assert: admin funciones size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeProgramaEnElPasado">testNoSeProgramaEnElPasado
+	"El reloj simulado marca hoy a las 10:00"
+	self assert: (self mensajeDeError: [self funcionDe: peli en: cine dia: -1 hora: 20]) contiene: 'pasado'.
+	self deberiaFallar: [self funcionDe: peli en: cine dia: 0 hora: 9].
+	self deberiaFallar: [self funcionDe: peli en: cine dia: 0 hora: 10].
+	self assert: (self programar: peli en: cine dia: 0 hora: 10 minutos: 1) id equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testValidaPrecioObraYSala">testValidaPrecioObraYSala
+	self assert: (self mensajeDeError: [admin programarFuncionObra: peli id sala: cine id fecha: (self dia: 5) hora: (self hora: 20) precio: 0]) contiene: 'mayor a cero'.
+	self deberiaFallar: [admin programarFuncionObra: 99 sala: cine id fecha: (self dia: 5) hora: (self hora: 20) precio: 1000].
+	self deberiaFallar: [admin programarFuncionObra: peli id sala: 99 fecha: (self dia: 5) hora: (self hora: 20) precio: 1000].
+	self assert: admin funciones isEmpty</body>
+
+</methods>
+
+<methods>
+<class-id>FuncionesTest</class-id> <category>superposicion</category>
+
+<body package="CineTeatro-Tests" selector="testNoSeSuperponenFuncionesEnLaMismaSala">testNoSeSuperponenFuncionesEnLaMismaSala
+	"Hay una funcion de 20:00 a 21:40. La pelicula dura 100 minutos."
+	self funcionDe: peli en: cine dia: 5 hora: 20.
+	"Empieza durante la otra"
+	self assert: (self mensajeDeError: [self funcionDe: peli en: cine dia: 5 hora: 21]) contiene: 'no esta libre'.
+	"Empieza antes pero termina durante la otra (19:00 a 20:40)"
+	self deberiaFallar: [self funcionDe: peli en: cine dia: 5 hora: 19].
+	"Exactamente el mismo horario"
+	self deberiaFallar: [self funcionDe: peli en: cine dia: 5 hora: 20].
+	self assert: admin funciones size equals: 1</body>
+
+<body package="CineTeatro-Tests" selector="testFuncionesPegadasNoSeSuperponen">testFuncionesPegadasNoSeSuperponen
+	"Una funcion puede empezar justo cuando termina la anterior, o terminar justo cuando empieza la siguiente"
+	self funcionDe: peli en: cine dia: 5 hora: 20.
+	self programar: peli en: cine dia: 5 hora: 21 minutos: 40.
+	self programar: peli en: cine dia: 5 hora: 18 minutos: 20.
+	self assert: admin funciones size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testOtraSalaUOtroDiaNoSeSuperponen">testOtraSalaUOtroDiaNoSeSuperponen
+	| mixta |
+	mixta := admin altaSalaNombre: 'Mixta' filas: 2 butacasPorFila: 2 permitePeliculas: true permiteTeatro: true.
+	self funcionDe: peli en: cine dia: 5 hora: 20.
+	self funcionDe: peli en: mixta dia: 5 hora: 20.
+	self funcionDe: peli en: cine dia: 6 hora: 20.
+	self assert: admin funciones size equals: 3</body>
+
+<body package="CineTeatro-Tests" selector="testSuperposicionConFuncionQueCruzaLaMedianoche">testSuperposicionConFuncionQueCruzaLaMedianoche
+	"Funcion del dia 5 de 23:30 a 01:10 del dia 6"
+	| nocturna |
+	nocturna := self programar: peli en: cine dia: 5 hora: 23 minutos: 30.
+	self assert: nocturna horaFin equals: (self hora: 1 minutos: 10).
+	"Al dia siguiente a las 00:30 la sala sigue ocupada"
+	self assert: (self mensajeDeError: [self programar: peli en: cine dia: 6 hora: 0 minutos: 30]) contiene: 'no esta libre'.
+	self deberiaFallar: [self programar: peli en: cine dia: 6 hora: 0 minutos: 0].
+	"Una que empieza el dia 5 a las 22:00 termina a las 23:40: tambien choca"
+	self deberiaFallar: [self programar: peli en: cine dia: 5 hora: 22 minutos: 0].
+	"A la 01:10 del dia 6 ya esta libre"
+	self programar: peli en: cine dia: 6 hora: 1 minutos: 10.
+	self assert: admin funciones size equals: 2</body>
+
+</methods>
+
+<methods>
+<class-id>FuncionesTest</class-id> <category>modificar y eliminar</category>
+
+<body package="CineTeatro-Tests" selector="testModificarPrecio">testModificarPrecio
+	| f |
+	f := self funcionDe: peli en: cine dia: 5 hora: 20.
+	admin modificarPrecio: 2500 funcion: f id.
+	self assert: f precioEntrada equals: 2500.
+	self assert: (self mensajeDeError: [admin modificarPrecio: 0 funcion: f id]) contiene: 'mayor a cero'.
+	self deberiaFallar: [admin modificarPrecio: 100 funcion: 99].
+	self assert: f precioEntrada equals: 2500</body>
+
+<body package="CineTeatro-Tests" selector="testEliminarFuncionSinMovimientos">testEliminarFuncionSinMovimientos
+	| f |
+	f := self funcionDe: peli en: cine dia: 5 hora: 20.
+	admin cancelarFuncion: f id.
+	self assert: admin funciones isEmpty.
+	self deberiaFallar: [admin cancelarFuncion: f id].
+	"El horario queda libre otra vez"
+	self funcionDe: peli en: cine dia: 5 hora: 20</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeEliminaUnaFuncionConReservasOVentas">testNoSeEliminaUnaFuncionConReservasOVentas
+	| conReserva conVenta socio |
+	socio := self socio: 'Ana'.
+	conReserva := self funcionDe: peli en: cine dia: 5 hora: 20.
+	conVenta := self funcionDe: peli en: cine dia: 6 hora: 20.
+	admin reservarSocio: socio id funcion: conReserva id butacas: #('A1').
+	admin venderFuncion: conVenta id butacas: #('A1') medioPago: PagoEfectivo new socio: nil.
+	self assert: (self mensajeDeError: [admin cancelarFuncion: conReserva id]) contiene: 'reservas'.
+	self deberiaFallar: [admin cancelarFuncion: conVenta id].
+	self assert: admin funciones size equals: 2</body>
+
+<body package="CineTeatro-Tests" selector="testNoSeEliminaUnaFuncionConReservasCanceladas">testNoSeEliminaUnaFuncionConReservasCanceladas
+	"Si se pudiera, la reserva cancelada se perderia y su numero se repetiria"
+	| f socio cancelada nueva |
+	socio := self socio: 'Ana'.
+	f := self funcionDe: peli en: cine dia: 5 hora: 20.
+	cancelada := admin reservarSocio: socio id funcion: f id butacas: #('A1').
+	admin cancelarReserva: cancelada id.
+	self assert: f tieneMovimientos.
+	self deberiaFallar: [admin cancelarFuncion: f id].
+	self assert: (admin todasLasReservas includes: cancelada).
+	nueva := admin reservarSocio: socio id funcion: f id butacas: #('A1').
+	self assert: cancelada id equals: 1.
+	self assert: nueva id equals: 2</body>
+
+</methods>
+
+<methods>
+<class-id>FuncionesTest</class-id> <category>listados</category>
+
+<body package="CineTeatro-Tests" selector="testFuncionesFuturasOrdenadasPorHorario">testFuncionesFuturasOrdenadasPorHorario
+	| f1 f2 f3 |
+	f1 := self funcionDe: peli en: cine dia: 7 hora: 20.
+	f2 := self funcionDe: peli en: cine dia: 3 hora: 20.
+	f3 := self funcionDe: obra en: teatro dia: 5 hora: 20.
+	self assert: admin funcionesFuturas asArray equals: (Array with: f2 with: f3 with: f1).
+	"Cuando el reloj pasa el comienzo de una funcion, deja de ser futura"
+	self ponerReloj: (self dia: 5) hora: (self hora: 20).
+	self assert: admin funcionesFuturas asArray equals: (Array with: f1)</body>
+
+<body package="CineTeatro-Tests" selector="testDescripcionDeLaFuncion">testDescripcionDeLaFuncion
+	| f texto |
+	f := self funcionDe: peli en: self salaChica dia: 5 hora: 20.
+	texto := admin descripcionFuncion: f.
+	self assert: texto contiene: '15/06/2030 20:00-21:40'.
+	self assert: texto contiene: 'Peli'.
+	self assert: texto contiene: 'Sala Chica'.
+	self assert: texto contiene: '$ 1.000,00'.
+	self assert: texto contiene: '0/2'.
+	self deny: texto contiene: 'AGOTADA'.
+	admin venderFuncion: f id butacas: #('A1' 'A2') medioPago: PagoEfectivo new socio: nil.
+	self assert: (admin descripcionFuncion: f) contiene: '2/2 AGOTADA'</body>
+
+</methods>
+
 </st-source>
