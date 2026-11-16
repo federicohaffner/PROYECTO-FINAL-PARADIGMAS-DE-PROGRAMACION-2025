@@ -1395,6 +1395,20 @@
 	ws cr; nextPutAll: '  XX = ocupada    nn = libre (numero de butaca)'.
 	^ws contents</body>
 
+<body package="CineTeatro" selector="">butacasDeCodigos: unosCodigos
+	"Las butacas de esta sala para esos codigos (ej: 'C4' 'c5'). Falla si no se indica
+	 ninguna, si hay repetidas o si alguna no existe en la sala."
+	| codigos resultado |
+	codigos := unosCodigos collect: [:c | c asUppercase].
+	codigos isEmpty ifTrue: [^ErrorCine new raiseSignal: 'Debe indicar al menos una butaca'].
+	codigos asSet size = codigos size ifFalse: [^ErrorCine new raiseSignal: 'Hay butacas repetidas'].
+	resultado := OrderedCollection new.
+	codigos do: [:c | | b |
+		b := self butacaDeCodigo: c.
+		b isNil ifTrue: [^ErrorCine new raiseSignal: 'La butaca ' , c , ' no existe en la sala ' , nombre].
+		resultado add: b].
+	^resultado</body>
+
 </methods>
 
 <methods>
@@ -1599,6 +1613,96 @@
 </methods>
 
 <methods>
+<class-id>Funcion</class-id> <category>reservas y ventas</category>
+
+<body package="CineTeatro" selector="">verificarAbiertaEl: unaFecha hora: unaHora
+	"Para reservar o comprar, la funcion no tiene que haber empezado ni estar agotada"
+	(self comenzoA: (UtilCine segundosDe: unaFecha hora: unaHora))
+		ifTrue: [^ErrorCine new raiseSignal: 'La funcion ya comenzo o finalizo'].
+	self estaAgotada ifTrue: [^ErrorCine new raiseSignal: 'La funcion esta agotada']</body>
+
+<body package="CineTeatro" selector="">verificarLibres: unasButacas
+	"Ninguna de esas butacas puede estar ya reservada o vendida en esta funcion"
+	unasButacas do: [:b |
+		(self estaOcupada: b codigo)
+			ifTrue: [^ErrorCine new raiseSignal: 'La butaca ' , b codigo , ' ya esta reservada o vendida']]</body>
+
+<body package="CineTeatro" selector="">importeDe: unaCantidad para: unSocioONil
+	"Lo que se cobra hoy por esa cantidad de entradas"
+	^Venta importe: precioEntrada * unaCantidad para: unSocioONil</body>
+
+<body package="CineTeatro" selector="">reservar: unasButacas para: unSocio numero: unId fecha: unaFecha hora: unaHora
+	"Reserva esas butacas a nombre del socio, al precio de hoy, y devuelve la reserva.
+	 unId es el numero de la nueva reserva; la fecha y la hora son el momento en que se hace."
+	| reserva |
+	unSocio estaActivo ifFalse: [^ErrorCine new raiseSignal: 'Solo los socios activos pueden reservar'].
+	self verificarAbiertaEl: unaFecha hora: unaHora.
+	self verificarLibres: unasButacas.
+	reserva := Reserva new
+		id: unId;
+		idSocio: unSocio id;
+		idFuncion: id;
+		listaButacasReservadas: unasButacas;
+		fechaReserva: unaFecha;
+		precioUnitario: precioEntrada;
+		yourself.
+	self agregarReserva: reserva.
+	^reserva</body>
+
+<body package="CineTeatro" selector="">cancelar: unaReserva fecha: unaFecha hora: unaHora
+	"Anula la reserva (si su estado y el tiempo que falta lo permiten) y libera sus butacas"
+	unaReserva
+		cancelarEl: unaFecha
+		faltando: (self segundosHastaInicioDesde: (UtilCine segundosDe: unaFecha hora: unaHora)).
+	self actualizarEstado</body>
+
+<body package="CineTeatro" selector="">cobrar: unaReserva a: unSocio medioPago: unMedioPago numero: unId fecha: unaFecha hora: unaHora
+	"Venta en base a una reserva: se venden las mismas butacas, al precio que tenia la entrada
+	 cuando se reservo, y la reserva queda confirmada. Devuelve la venta."
+	| venta |
+	unMedioPago validar.
+	venta := Venta new
+		id: unId;
+		idReserva: unaReserva id;
+		idFuncion: id;
+		idSocio: unSocio id;
+		fecha: unaFecha;
+		hora: unaHora;
+		medioPago: unMedioPago;
+		butacasVendidas: unaReserva listaButacasReservadas copy;
+		monto: (unaReserva importePara: unSocio);
+		yourself.
+	"Si la reserva no esta pendiente, su estado lanza el error aca y no se agrega la venta"
+	unaReserva confirmar.
+	self agregarVenta: venta.
+	^venta</body>
+
+<body package="CineTeatro" selector="">vender: unasButacas a: unSocioONil medioPago: unMedioPago numero: unId fecha: unaFecha hora: unaHora
+	"Venta directa (sin reserva previa). Si compra un socio (activo) se le aplica el descuento;
+	 nil = el comprador no es socio. Devuelve la venta."
+	| venta |
+	self verificarAbiertaEl: unaFecha hora: unaHora.
+	(unSocioONil notNil and: [unSocioONil estaActivo not])
+		ifTrue: [^ErrorCine new raiseSignal: 'El socio esta inactivo: no tiene descuento'].
+	self verificarLibres: unasButacas.
+	unMedioPago validar.
+	venta := Venta new
+		id: unId;
+		idReserva: nil;
+		idFuncion: id;
+		idSocio: (unSocioONil isNil ifTrue: [nil] ifFalse: [unSocioONil id]);
+		fecha: unaFecha;
+		hora: unaHora;
+		medioPago: unMedioPago;
+		butacasVendidas: unasButacas;
+		monto: (self importeDe: unasButacas size para: unSocioONil);
+		yourself.
+	self agregarVenta: venta.
+	^venta</body>
+
+</methods>
+
+<methods>
 <class-id>Reserva</class-id> <category>accessing</category>
 
 <body package="CineTeatro" selector="id">id
@@ -1733,6 +1837,10 @@
 	ws := WriteStream on: (String new: 40).
 	listaButacasReservadas do: [:b | ws nextPutAll: b codigo] separatedBy: [ws space].
 	^ws contents</body>
+
+<body package="CineTeatro" selector="">importePara: unSocio
+	"Lo que tiene que pagar el socio por esta reserva: al precio del dia en que reservo y con su descuento"
+	^Venta importe: self importeBruto para: unSocio</body>
 
 </methods>
 
@@ -1889,6 +1997,16 @@
 </methods>
 
 <methods>
+<class-id>MedioPago</class-id> <category>validacion</category>
+
+<body package="CineTeatro" selector="">validar
+	"Falla con un ErrorCine si a los datos del pago les falta algo o estan mal.
+	 Por defecto no hay nada que revisar (efectivo); cada subclase revisa lo suyo."
+	^self</body>
+
+</methods>
+
+<methods>
 <class-id>PagoEfectivo</class-id> <category>polimorfismo</category>
 
 <body package="CineTeatro" selector="tipo">tipo
@@ -1961,6 +2079,25 @@
 </methods>
 
 <methods>
+<class-id>PagoTarjeta</class-id> <category>validacion</category>
+
+<body package="CineTeatro" selector="">validar
+	self validarDigitos.
+	self validarCuotas</body>
+
+<body package="CineTeatro" selector="">validarDigitos
+	((UtilCine esEntero: ultimosDigitos) and: [ultimosDigitos size = 4])
+		ifFalse: [^ErrorCine new raiseSignal: 'Debe ingresar exactamente 4 digitos']</body>
+
+<body package="CineTeatro" selector="">validarCuotas
+	"Solo el credito se paga en cuotas (de 1 a 12); el debito es siempre un pago"
+	| maximo |
+	maximo := tipoTarjeta = #credito ifTrue: [12] ifFalse: [1].
+	(cuotas between: 1 and: maximo) ifFalse: [^ErrorCine new raiseSignal: 'Cantidad de cuotas invalida']</body>
+
+</methods>
+
+<methods>
 <class-id>PagoTransferencia</class-id> <category>accessing</category>
 
 <body package="CineTeatro" selector="aliasOrigen">aliasOrigen
@@ -1997,6 +2134,15 @@
 
 <body package="CineTeatro" selector="descripcion">descripcion
 	^'Transferencia desde ' , aliasOrigen , ' (op. ' , numeroOperacion , ')'</body>
+
+</methods>
+
+<methods>
+<class-id>PagoTransferencia</class-id> <category>validacion</category>
+
+<body package="CineTeatro" selector="">validar
+	(aliasOrigen trimSeparators isEmpty or: [numeroOperacion trimSeparators isEmpty])
+		ifTrue: [^ErrorCine new raiseSignal: 'Faltan el alias o el numero de operacion de la transferencia']</body>
 
 </methods>
 
@@ -2065,6 +2211,19 @@
 <body package="CineTeatro" selector="new">new
 	"Answer a newly created and initialized instance."
 	^super new initialize</body>
+
+</methods>
+
+<methods>
+<class-id>Venta class</class-id> <category>importes</category>
+
+<body package="CineTeatro" selector="">importe: unImporteBruto para: unSocioONil
+	"Lo que se cobra: con el descuento si compra un socio (nil = no socio), redondeado al centavo"
+	| monto |
+	monto := unSocioONil isNil
+		ifTrue: [unImporteBruto]
+		ifFalse: [unSocioONil aplicarDescuentoA: unImporteBruto].
+	^(monto * 100) rounded / 100</body>
 
 </methods>
 
@@ -2757,37 +2916,25 @@
 <class-id>AdministradorCine</class-id> <category>reservas</category>
 
 <body package="CineTeatro" selector="butacas:paraFuncion:">butacas: unosCodigos paraFuncion: unaFuncion
-	"Valida los codigos de butaca ingresados y devuelve las butacas de la sala"
-	| sala resultado codigos |
-	sala := self salaId: unaFuncion idSala.
-	codigos := unosCodigos collect: [:c | c asUppercase].
-	codigos isEmpty ifTrue: [^self fallar: 'Debe indicar al menos una butaca'].
-	codigos asSet size = codigos size ifFalse: [^self fallar: 'Hay butacas repetidas'].
-	resultado := OrderedCollection new.
-	codigos do: [:c | | b |
-		b := sala butacaDeCodigo: c.
-		b isNil ifTrue: [^self fallar: 'La butaca ' , c , ' no existe en la sala ' , sala nombre].
-		(unaFuncion estaOcupada: c) ifTrue: [^self fallar: 'La butaca ' , c , ' ya esta reservada o vendida'].
-		resultado add: b].
-	^resultado</body>
+	"Valida los codigos de butaca ingresados y devuelve las butacas: la sala sabe cuales
+	 existen y la funcion cuales estan libres"
+	| butacas |
+	butacas := (self salaId: unaFuncion idSala) butacasDeCodigos: unosCodigos.
+	unaFuncion verificarLibres: butacas.
+	^butacas</body>
 
 <body package="CineTeatro" selector="reservarSocio:funcion:butacas:">reservarSocio: unIdSocio funcion: unIdFuncion butacas: unosCodigos
-	| socio funcion butacas reserva |
+	"El administrador busca los objetos, pone el numero de reserva y el momento, y guarda.
+	 Las reglas (socio activo, funcion abierta, butacas libres) las aplica la funcion."
+	| socio funcion reserva |
 	socio := self socioId: unIdSocio.
-	socio estaActivo ifFalse: [^self fallar: 'Solo los socios activos pueden reservar'].
 	funcion := self funcionId: unIdFuncion.
-	(funcion comenzoA: self ahoraEnSegundos) ifTrue: [^self fallar: 'La funcion ya comenzo o finalizo'].
-	funcion estaAgotada ifTrue: [^self fallar: 'La funcion esta agotada'].
-	butacas := self butacas: unosCodigos paraFuncion: funcion.
-	reserva := Reserva new
-		id: (self siguienteIdEn: self todasLasReservas);
-		idSocio: unIdSocio;
-		idFuncion: unIdFuncion;
-		listaButacasReservadas: butacas;
-		fechaReserva: self hoy;
-		precioUnitario: funcion precioEntrada;
-		yourself.
-	funcion agregarReserva: reserva.
+	reserva := funcion
+		reservar: ((self salaId: funcion idSala) butacasDeCodigos: unosCodigos)
+		para: socio
+		numero: (self siguienteIdEn: self todasLasReservas)
+		fecha: self hoy
+		hora: self horaActual.
 	self guardar.
 	^reserva</body>
 
@@ -2797,8 +2944,7 @@
 	| reserva funcion |
 	reserva := self reservaId: unIdReserva.
 	funcion := self funcionId: reserva idFuncion.
-	reserva cancelarEl: self hoy faltando: (funcion segundosHastaInicioDesde: self ahoraEnSegundos).
-	funcion actualizarEstado.
+	funcion cancelar: reserva fecha: self hoy hora: self horaActual.
 	self guardar.
 	^reserva</body>
 
@@ -2816,62 +2962,41 @@
 <class-id>AdministradorCine</class-id> <category>ventas</category>
 
 <body package="CineTeatro" selector="calcularMontoPrecio:cantidad:socio:">calcularMontoPrecio: unPrecio cantidad: unaCantidad socio: unSocioOrNil
-	"Importe a cobrar, redondeado al centavo"
-	| bruto monto |
-	bruto := unPrecio * unaCantidad.
-	monto := unSocioOrNil isNil ifTrue: [bruto] ifFalse: [unSocioOrNil aplicarDescuentoA: bruto].
-	^(monto * 100) rounded / 100</body>
+	"Importe a cobrar, redondeado al centavo (la cuenta la hace Venta)"
+	^Venta importe: unPrecio * unaCantidad para: unSocioOrNil</body>
 
 <body package="CineTeatro" selector="montoDeReserva:">montoDeReserva: unaReserva
-	"Lo que el socio paga (o debe) por una reserva: el precio del dia en que reservo, con su descuento"
-	^self calcularMontoPrecio: unaReserva precioUnitario cantidad: unaReserva cantidadButacas socio: (self socioId: unaReserva idSocio)</body>
+	"Lo que hay que pagar por una reserva"
+	^unaReserva importePara: (self socioId: unaReserva idSocio)</body>
 
 <body package="CineTeatro" selector="venderReserva:medioPago:">venderReserva: unIdReserva medioPago: unMedioPago
-	"Venta en base a una reserva: se venden las mismas butacas, al precio que tenia la entrada
-	 cuando se reservo, y la reserva queda confirmada"
-	| reserva funcion socio venta |
+	"Venta en base a una reserva: la arma la funcion (ver Funcion&gt;&gt;cobrar:a:medioPago:...)"
+	| reserva funcion venta |
 	reserva := self reservaId: unIdReserva.
 	funcion := self funcionId: reserva idFuncion.
-	socio := self socioId: reserva idSocio.
-	venta := Venta new
-		id: (self siguienteIdEn: self todasLasVentas);
-		idReserva: reserva id;
-		idFuncion: funcion id;
-		idSocio: socio id;
-		fecha: self hoy;
-		hora: self horaActual;
-		medioPago: unMedioPago;
-		butacasVendidas: reserva listaButacasReservadas copy;
-		monto: (self montoDeReserva: reserva);
-		yourself.
-	reserva confirmar.
-	funcion agregarVenta: venta.
+	venta := funcion
+		cobrar: reserva
+		a: (self socioId: reserva idSocio)
+		medioPago: unMedioPago
+		numero: (self siguienteIdEn: self todasLasVentas)
+		fecha: self hoy
+		hora: self horaActual.
 	self guardar.
 	^venta</body>
 
 <body package="CineTeatro" selector="venderFuncion:butacas:medioPago:socio:">venderFuncion: unIdFuncion butacas: unosCodigos medioPago: unMedioPago socio: unIdSocioOrNil
-	"Venta directa (sin reserva previa). Si el comprador es socio activo se aplica el descuento."
-	| funcion socio butacas venta |
+	"Venta directa (sin reserva previa): la arma la funcion (ver Funcion&gt;&gt;vender:a:medioPago:...).
+	 unIdSocioOrNil es nil si el comprador no es socio."
+	| funcion socio venta |
 	funcion := self funcionId: unIdFuncion.
-	(funcion comenzoA: self ahoraEnSegundos) ifTrue: [^self fallar: 'La funcion ya comenzo o finalizo'].
-	funcion estaAgotada ifTrue: [^self fallar: 'La funcion esta agotada'].
-	socio := nil.
-	unIdSocioOrNil isNil ifFalse: [
-		socio := self socioId: unIdSocioOrNil.
-		socio estaActivo ifFalse: [^self fallar: 'El socio esta inactivo: no tiene descuento']].
-	butacas := self butacas: unosCodigos paraFuncion: funcion.
-	venta := Venta new
-		id: (self siguienteIdEn: self todasLasVentas);
-		idReserva: nil;
-		idFuncion: funcion id;
-		idSocio: unIdSocioOrNil;
-		fecha: self hoy;
-		hora: self horaActual;
-		medioPago: unMedioPago;
-		butacasVendidas: butacas;
-		monto: (self calcularMontoPrecio: funcion precioEntrada cantidad: butacas size socio: socio);
-		yourself.
-	funcion agregarVenta: venta.
+	socio := unIdSocioOrNil isNil ifTrue: [nil] ifFalse: [self socioId: unIdSocioOrNil].
+	venta := funcion
+		vender: ((self salaId: funcion idSala) butacasDeCodigos: unosCodigos)
+		a: socio
+		medioPago: unMedioPago
+		numero: (self siguienteIdEn: self todasLasVentas)
+		fecha: self hoy
+		hora: self horaActual.
 	self guardar.
 	^venta</body>
 
@@ -3461,10 +3586,10 @@
 	tarjeta marca: (self pedir: 'Marca de la tarjeta' inicial: 'VISA').
 	tarjeta titular: (self pedir: 'Titular de la tarjeta').
 	tarjeta ultimosDigitos: (self pedir: 'Ultimos 4 digitos de la tarjeta').
-	((UtilCine esEntero: tarjeta ultimosDigitos) and: [tarjeta ultimosDigitos size = 4]) ifFalse: [^ErrorCine new raiseSignal: 'Debe ingresar exactamente 4 digitos'].
+	tarjeta validarDigitos.
 	tarjeta tipoTarjeta = #credito ifTrue: [
 		tarjeta cuotas: (self pedirEntero: 'Cantidad de cuotas (1 a 12)' inicial: 1).
-		(tarjeta cuotas between: 1 and: 12) ifFalse: [^ErrorCine new raiseSignal: 'Cantidad de cuotas invalida']].
+		tarjeta validarCuotas].
 	^tarjeta</body>
 
 </methods>
