@@ -1326,7 +1326,9 @@
 	self assert: plano contiene: ' A   XX 02    03 04'.
 	self assert: plano contiene: ' B   01 02    03 04'.
 	self assert: plano contiene: ' C   01 02    03 XX'.
-	self deny: (sala planoMarcando: #()) contiene: 'XX '</body>
+	"Sin butacas ocupadas, todas las filas muestran sus numeros"
+	self assert: (sala planoMarcando: #()) contiene: ' A   01 02    03 04'.
+	self assert: (sala planoMarcando: #()) contiene: ' C   01 02    03 04'</body>
 
 <body package="CineTeatro-Tests" selector="testAltaDeSalaValidaciones">testAltaDeSalaValidaciones
 	self salaCine.
