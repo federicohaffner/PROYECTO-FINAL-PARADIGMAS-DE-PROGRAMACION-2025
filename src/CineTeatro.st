@@ -3098,7 +3098,7 @@
 				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 106 1115 128) #name: #consultaHistorialSocio #model: #consultaHistorialSocio #label: 'Historial de un socio' #defaultable: true) 
 				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 130 1115 152) #name: #consultaProximas #model: #consultaProximas #label: 'Proximas con lugar' #defaultable: true) 
 				#(#{UI.ActionButtonSpec} #layout: #(#{Graphics.Rectangle} 962 154 1115 176) #name: #consultaParticipaciones #model: #consultaParticipaciones #label: 'Participaciones persona' #defaultable: true) 
-				#(#{UI.TextEditorSpec} #layout: #(#{Graphics.LayoutFrame} 8 0 304 0 -8 1 -8 1) #name: #salida #model: #salida #isReadOnly: true #tabRequiresControl: true #style: #fixed) ) ) )</body>
+				#(#{UI.TextEditorSpec} #layout: #(#{Graphics.LayoutFrame} 8 0 304 0 -8 1 -8 1) #name: #salida #flags: 15 #model: #salida #isReadOnly: true #isWrapped: false #tabRequiresControl: true #style: #fixed) ) ) )</body>
 
 </methods>
 

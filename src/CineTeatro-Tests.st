@@ -2962,4 +2962,16 @@ Funciones (el reloj marca hoy 10:00; entrada $ 1000):
 
 </methods>
 
+<methods>
+<class-id>VentanaCineTest</class-id> <category>panel de salida</category>
+
+<body package="CineTeatro-Tests" selector="testElPanelDeSalidaNoCortaLasLineas">testElPanelDeSalidaNoCortaLasLineas
+	"Los listados son tablas: en vez de partir las lineas largas, el panel tiene barra horizontal"
+	| panel |
+	panel := self elementosDeLaVentana detect: [:e | e first value == UI.TextEditorSpec].
+	self assert: (panel at: (panel indexOf: #isWrapped:) + 1) equals: false.
+	self assert: (panel at: (panel indexOf: #isReadOnly:) + 1) equals: true</body>
+
+</methods>
+
 </st-source>
