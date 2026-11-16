@@ -1,0 +1,10 @@
+# Imagenes y changes de VisualWorks (se generan localmente)
+*.im
+*.cha
+*.changes
+*.sou
+# Archivos temporales
+*.bak
+*.tmp
+Thumbs.db
+.DS_Store

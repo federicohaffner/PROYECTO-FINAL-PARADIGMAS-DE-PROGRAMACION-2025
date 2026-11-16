@@ -1,0 +1,3 @@
+*.st  text eol=crlf
+*.bos binary
+*.jpg binary

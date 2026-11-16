@@ -8,7 +8,7 @@ Implementado en **Smalltalk (VisualWorks 8.2)**. Es un solo paquete: `CineTeatro
 
 | Archivo | Qué es |
 |---|---|
-| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 21 clases, unos 480 métodos |
+| `src/CineTeatro.st` | Código fuente completo (file-out XML de VisualWorks): 21 clases, unos 485 métodos |
 | `datosCine/*.bos` | Datos de prueba ya cargados, una lista por archivo (personas, socios, criticos, obras, salas, funciones) |
 | `docs/capturas/` | Capturas del sistema funcionando |
 
@@ -53,6 +53,8 @@ Todos los cambios se graban solos en disco después de cada operación.
 
 ### Decisiones y adaptaciones respecto del enunciado
 - **Persistencia**: cada lista se guarda en su propio archivo con **BOSS** (`BinaryObjectStorage`), en la carpeta `datosCine`. Las reservas y ventas se guardan dentro de cada función (`listaReservas` / `listaVentas`), como pide la clase Función, para no duplicar datos.
+- **Archivos dañados**: si un `.bos` existe pero no se puede leer, el sistema lo avisa en la pantalla de bienvenida y **no graba nada** hasta que se repare o quite el archivo y se use *Recargar desde disco* (o *Cargar datos de prueba* para empezar de cero). Así un archivo ilegible nunca se pisa con una lista vacía.
+- **Importes exactos**: los precios se escriben a la manera local (`5000`, `5.000`, `4500,50`) y se guardan como enteros o fracciones, no como `Float`, para no perder centavos. Lo cobrado se redondea al centavo.
 - Las relaciones se hacen por **id** (idPersona, idSala, idObra…), igual que en el enunciado.
 - `Funcion` guarda su `capacidad` y su `duracion` al crearse, así puede saber sola si está agotada o si se superpone con otra.
 - `Venta` tiene `idSocio` además de lo pedido: hace falta para el resumen de ingresos por tipo de cliente y para que un socio tenga su descuento también en compras directas.
@@ -65,7 +67,9 @@ Todos los cambios se graban solos en disco después de cada operación.
 - Pagar una reserva genera la venta con las mismas butacas y deja la reserva **confirmada**.
 - Una función no supera la capacidad de la sala. Con todas las butacas reservadas o vendidas pasa a **agotada**.
 - Solo se programan funciones de obras **en cartel**, en salas que admiten ese tipo de obra, en el futuro y **sin superponerse** con otra función de la sala.
+- El **precio** de una función no se puede cambiar mientras tenga reservas pendientes de pago: se reservaron al precio vigente.
 - Solo las **películas** reciben críticas (una por crítico; si repite, se reemplaza).
+- En los diálogos, **Cancelar** cancela toda la acción, también en los campos opcionales (no borra el dato que había).
 - Validaciones: DNI único y numérico, butacas existentes, libres y no repetidas, fechas y horas válidas, etc.
 
 ## Consultas (botones)
