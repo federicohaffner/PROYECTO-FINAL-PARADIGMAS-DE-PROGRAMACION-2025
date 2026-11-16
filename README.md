@@ -4,8 +4,6 @@ Implementado en **Smalltalk (VisualWorks 8.2)**. El sistema es un solo paquete, 
 
 ![Pantalla principal](docs/capturas/pantalla-principal.png)
 
-> **Para estudiar el código y preparar la defensa: [docs/GUIA.md](docs/GUIA.md).** Explica la sintaxis, cada clase, qué pasa al apretar cada botón, la persistencia, la interfaz y las preguntas típicas.
-
 ## Contenido del repositorio
 
 | Archivo | Qué es |
@@ -14,7 +12,7 @@ Implementado en **Smalltalk (VisualWorks 8.2)**. El sistema es un solo paquete, 
 | `src/CineTeatro-Tests.st` | Pruebas automáticas con SUnitToo: 226 pruebas en 10 clases |
 | `tests/correr-pruebas.st` | Script que carga todo en una imagen limpia, corre las pruebas y escribe `tests/resultado.txt` |
 | `datosCine/*.bos` | Datos de prueba ya cargados, una lista por archivo (personas, socios, criticos, obras, salas, funciones) |
-| `docs/GUIA.md` | Guía para entender el código |
+| [`docs/GUIA.md`](docs/GUIA.md) | Guía para entender el código |
 | `docs/capturas/` | Capturas del sistema funcionando |
 
 ## Cómo cargarlo y abrirlo
